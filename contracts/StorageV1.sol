@@ -8,8 +8,9 @@ import "./VSPBond.sol";
 abstract contract StorageV1 {
     IERC20 public token;
     // TODO: rename
-    VSPBond public vspBond;
+    VSPBond public bond;
     uint256 public totalLocked;
+    uint256 public totalBoosted;
     uint256 public tokenId;
     struct Balance {
         uint256 lockedAmount;
