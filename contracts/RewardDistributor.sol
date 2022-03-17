@@ -13,7 +13,7 @@ contract RewardsStorage {
         bool useBoost;
         uint256 periodFinish;
         uint256 rewardRates;
-        uint256 rewardDuration;
+        uint256 rewardDuration; // TODO: don't we want constant rewardDuration?
         uint256 lastUpdateTime;
         uint256 rewardPerTokenStored;
     }
@@ -30,7 +30,7 @@ contract RewardsStorage {
     mapping(address => mapping(address => uint256)) public rewards;
 
     // reward token -> distributor -> is approved to add rewards
-    mapping(address => mapping(address => bool)) public rewardDistributors;
+    mapping(address => mapping(address => bool)) public isRewardDistributor;
 }
 
 /// @title Distribute rewards based on vesper pool balance and supply
@@ -53,36 +53,18 @@ contract RewardDistributor is Initializable, ReentrancyGuard, RewardsStorage {
         }
     }
 
-    modifier onlyDistributor() {
-        require(msg.sender == IVesperPool(pool).governor(), "not-authorized");
-        _;
-    }
-
-    /**
-     * @notice Notify that reward is added. Only authorized caller can call
-     * @dev Also updates reward rate and reward earning period.
-     * @param _rewardTokens Tokens being rewarded
-     * @param _rewardAmounts Rewards amount for token on same index in rewardTokens array
-     * @param _rewardDurations Duration for which reward will be distributed
-     */
-    function notifyRewardAmount(
-        address[] memory _rewardTokens,
-        uint256[] memory _rewardAmounts,
-        uint256[] memory _rewardDurations
-    ) external virtual override onlyAuthorized {
-        _notifyRewardAmount(_rewardTokens, _rewardAmounts, _rewardDurations, IERC20(pool).totalSupply());
-    }
 
     function notifyRewardAmount(
         address _rewardToken,
         uint256 _rewardAmount,
         uint256 _rewardDuration
-    ) external virtual override onlyAuthorized {
+    ) external virtual override {
+        require(isRewardDistributor[_rewardToken][msg.sender], "not-distributor");
         _notifyRewardAmount(_rewardToken, _rewardAmount, _rewardDuration, IERC20(pool).totalSupply());
     }
 
     /// @notice Add new reward token in existing rewardsToken array
-    function addRewardToken(address _newRewardToken) external onlyAuthorized {
+    function addRewardToken(address _newRewardToken) external onlyGovernor {
         require(_newRewardToken != address(0), "reward-token-address-zero");
         require(!isRewardToken[_newRewardToken], "reward-token-already-exist");
         emit RewardTokenAdded(_newRewardToken, rewardTokens);
