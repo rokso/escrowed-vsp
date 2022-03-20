@@ -3,9 +3,10 @@
 pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "./interface/IVSPBond.sol";
 
 // TODO: Should use enumurable ERC721?
-contract VSPBond is ERC721 {
+contract VSPBond is IVSPBond, ERC721 {
     address public locker;
 
     constructor(
