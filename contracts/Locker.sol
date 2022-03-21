@@ -2,6 +2,7 @@
 
 pragma solidity 0.8.9;
 
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./access/Governable.sol";
 import "./StorageV1.sol";
 
@@ -33,6 +34,21 @@ contract Locker is Governable, StorageV1 {
         _lock(amount_, lockPeriod_, account_);
     }
 
+    // TODO: Only governor
+    function addReward(
+        address rewardsToken_,
+        address distributor_,
+        bool isBoosted_
+    ) public {
+        require(rewardData[rewardsToken_].lastUpdateTime == 0);
+        require(rewardsToken_ != address(VSP));
+        rewardTokens.push(rewardsToken_);
+        rewardData[rewardsToken_].lastUpdateTime = block.timestamp;
+        rewardData[rewardsToken_].periodFinish = block.timestamp;
+        rewardData[rewardsToken_].isBoosted = isBoosted_;
+        isRewardDistributor[rewardsToken_][distributor_] = true;
+    }
+
     function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external {
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
@@ -40,6 +56,7 @@ contract Locker is Governable, StorageV1 {
         _notifyRewardAmount(rewardToken_, rewardAmount_);
     }
 
+    // TODO: Merge with `notifyRewardAmount` if no other function call this
     function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
         IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
         Reward storage rewardData_ = rewardData[rewardToken_];
@@ -60,6 +77,7 @@ contract Locker is Governable, StorageV1 {
     }
 
     function updateReward(address account_) external {
+        require(account_ != address(0), "account-is-null");
         uint256 len_ = rewardTokens.length;
         uint256 totalSupply_;
         uint256 userBalance_;
@@ -82,7 +100,7 @@ contract Locker is Governable, StorageV1 {
     /// @notice Returns timestamp of last reward update
     function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
         uint256 periodFinish_ = rewardData[_rewardToken].periodFinish;
-        return block.timestamp < periodFinish_ ? block.timestamp : periodFinish_;
+        return Math.min(block.timestamp, periodFinish_);
     }
 
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
@@ -102,8 +120,8 @@ contract Locker is Governable, StorageV1 {
         address account_
     ) internal {
         require(amount_ > 0, "amount-zero");
-        require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lockPeriod < minimumLockPeriod");
-        require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lockPeriod > maximumLockPeriod");
+        require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
+        require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
 
         uint256 balanceBefore_ = VSP.balanceOf(address(this));
         VSP.safeTransferFrom(_msgSender(), address(this), amount_);
@@ -130,7 +148,7 @@ contract Locker is Governable, StorageV1 {
         uint256 totalSupply_,
         uint256 balance_
     ) private returns (uint256) {
-        // TODO
+        // TODO: WIP
     }
 
     function _updateReward(
@@ -143,16 +161,15 @@ contract Locker is Governable, StorageV1 {
         Reward storage rewardData_ = rewardData[rewardToken_];
         rewardData_.rewardPerTokenStored = _rewardPerTokenStored;
         rewardData_.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
-        if (account_ != address(0)) {
-            rewards[rewardToken_][account_] = _claimable(rewardToken_, account_, totalSupply_, balance_);
-            userRewardPerTokenPaid[rewardToken_][account_] = _rewardPerTokenStored;
-        }
+        rewards[rewardToken_][account_] = _claimable(rewardToken_, account_, totalSupply_, balance_);
+        userRewardPerTokenPaid[rewardToken_][account_] = _rewardPerTokenStored;
     }
 
     function _withdraw(uint256 tokenId_) internal {
         StakeData memory stakeData_ = stakeData[tokenId_];
         require(block.timestamp > stakeData_.unlockTime, "not-unlocked-yet");
         address account_ = bond.ownerOf(tokenId_);
+        require(account_ == _msgSender(), "not-owner");
         bond.burn(tokenId_);
         totalLocked -= stakeData_.lockedAmount;
         totalBoosted -= stakeData_.boostedAmount;
