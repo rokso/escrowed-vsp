@@ -8,148 +8,154 @@ import "./StorageV1.sol";
 contract Locker is Governable, StorageV1 {
     using SafeERC20 for IERC20;
     string public constant VERSION = "1.0.0";
+    IERC20 internal constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
     uint256 internal constant MINIMUM_LOCK_PERIOD = 7 days;
     uint256 internal constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
     uint256 internal constant MAXIMUM_BOOST = 4;
-    uint256 internal constant REWARD_DURATION = 30 days; // TODO: What this means?
+    uint256 internal constant REWARD_DURATION = 30 days;
 
     event RewardAdded(address rewardToken, uint256 rewardAmount, uint256 rewardDuration);
 
-    function initialize(IERC20 _token, IVSPBond _bond) public initializer {
-        // TODO: add requires
-        token = _token;
-        bond = _bond;
+    function initialize(IVSPBond bond_) public initializer {
+        require(address(bond_) != address(0), "bond-is-zero");
+        bond = bond_;
     }
 
-    function lock(uint256 _amount, uint256 _lockPeriod) external {
-        _lock(_amount, _lockPeriod, _msgSender());
+    function lock(uint256 amount_, uint256 lockPeriod_) external {
+        _lock(amount_, lockPeriod_, _msgSender());
     }
 
     function lockFor(
-        uint256 _amount,
-        uint256 _lockPeriod,
-        address _account
+        uint256 amount_,
+        uint256 lockPeriod_,
+        address account_
     ) external {
-        _lock(_amount, _lockPeriod, _account);
+        _lock(amount_, lockPeriod_, account_);
     }
 
-    // TODO: Who calls this function and when?
-    function notifyRewardAmount(address _rewardToken, uint256 _rewardAmount) external {
-        require(isRewardDistributor[_rewardToken][msg.sender], "not-distributor");
-        require(_rewardAmount > 0, "incorrect-reward-amount");
-        require(isRewardToken[_rewardToken], "invalid-reward-token");
+    function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external {
+        require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
+        require(rewardAmount_ > 0, "incorrect-reward-amount");
+        require(isRewardToken[rewardToken_], "invalid-reward-token");
+        _notifyRewardAmount(rewardToken_, rewardAmount_);
+    }
 
-        Reward storage _rewardData = rewardData[_rewardToken];
-
-        // Update rewards earned so far
-        uint256 _totalSupply; // TODO
-        _rewardData.rewardPerTokenStored = _rewardPerToken(_rewardToken, _totalSupply);
-        if (block.timestamp >= _rewardData.periodFinish) {
-            _rewardData.rewardRates = _rewardAmount / REWARD_DURATION;
+    function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
+        IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
+        Reward storage rewardData_ = rewardData[rewardToken_];
+        uint256 totalSupply_ = rewardData_.isBoosted ? totalBoosted : totalLocked;
+        rewardData_.rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
+        if (block.timestamp >= rewardData_.periodFinish) {
+            rewardData_.rewardRates = rewardAmount_ / REWARD_DURATION;
         } else {
-            uint256 _remainingPeriod = _rewardData.periodFinish - block.timestamp;
-            uint256 _leftover = _remainingPeriod * _rewardData.rewardRates;
-            _rewardData.rewardRates = (_rewardAmount + _leftover) / REWARD_DURATION;
+            uint256 remainingPeriod_ = rewardData_.periodFinish - block.timestamp;
+            uint256 leftover_ = remainingPeriod_ * rewardData_.rewardRates;
+            rewardData_.rewardRates = (rewardAmount_ + leftover_) / REWARD_DURATION;
         }
-        // Safety check
-        uint256 balance = IERC20(_rewardToken).balanceOf(address(this));
-        require(_rewardData.rewardRates <= (balance / REWARD_DURATION), "rewards-too-high");
+
         // Start new drip time
-
-        // TODO: Commenting this since we have it as constant
-        //rewardDuration[_rewardToken] = _rewardDuration;
-        _rewardData.lastUpdateTime = block.timestamp;
-        _rewardData.periodFinish = block.timestamp + REWARD_DURATION;
-        emit RewardAdded(_rewardToken, _rewardAmount, REWARD_DURATION);
+        rewardData_.lastUpdateTime = block.timestamp;
+        rewardData_.periodFinish = block.timestamp + REWARD_DURATION;
+        emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
     }
 
-    function updateReward(address _account) external {
-        uint256 _totalBoosted = totalBoosted;
-        // TODO: implement reward without boost
-        uint256 _balance; // = IERC20(pool).balanceOf(_account);
-        uint256 _len = rewardTokens.length;
-        for (uint256 i = 0; i < _len; i++) {
-            _updateReward(rewardTokens[i], _account, _totalBoosted, _balance);
+    function updateReward(address account_) external {
+        uint256 len_ = rewardTokens.length;
+        uint256 totalSupply_;
+        uint256 userBalance_;
+        for (uint256 i = 0; i < len_; i++) {
+            if (rewardData[rewardTokens[i]].isBoosted) {
+                totalSupply_ = totalBoosted;
+                userBalance_ = boosted[account_];
+            } else {
+                totalSupply_ = totalLocked;
+                userBalance_ = locked[account_];
+            }
+            _updateReward(rewardTokens[i], account_, totalSupply_, userBalance_);
         }
     }
 
-    function withdraw(uint256 _tokenId) external {
-        _withdraw(_tokenId);
+    function withdraw(uint256 tokenId_) external {
+        _withdraw(tokenId_);
     }
 
-    function kickOff(uint256 _tokenId) external {
-        // TODO
+    /// @notice Returns timestamp of last reward update
+    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
+        uint256 periodFinish_ = rewardData[_rewardToken].periodFinish;
+        return block.timestamp < periodFinish_ ? block.timestamp : periodFinish_;
     }
 
-    function lastTimeRewardApplicable(address _rewardToken) public returns (uint256) {
-        // TODO
-    }
+    function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
+        if (totalSupply_ == 0) {
+            return rewardData[rewardToken_].rewardPerTokenStored;
+        }
 
-    function _rewardPerToken(address _rewardToken, uint256 _totalSupply) private view returns (uint256) {
-        // TODO
+        uint256 timeSinceLastUpdate_ = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
+        uint256 rewardsSinceLastUpdate_ = timeSinceLastUpdate_ * rewardData[rewardToken_].rewardRates;
+        uint256 rewardsPerTokenSinceLastUpdate_ = (rewardsSinceLastUpdate_ * 1e18) / totalSupply_;
+        return rewardData[rewardToken_].rewardPerTokenStored + rewardsPerTokenSinceLastUpdate_;
     }
 
     function _lock(
-        uint256 _amount,
-        uint256 _lockPeriod,
-        address _account
+        uint256 amount_,
+        uint256 lockPeriod_,
+        address account_
     ) internal {
-        require(_amount > 0, "amount-zero");
-        require(_lockPeriod > MINIMUM_LOCK_PERIOD, "lockPeriod < minimumLockPeriod");
-        require(_lockPeriod <= MAXIMUM_LOCK_PERIOD, "lockPeriod > maximumLockPeriod");
+        require(amount_ > 0, "amount-zero");
+        require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lockPeriod < minimumLockPeriod");
+        require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lockPeriod > maximumLockPeriod");
 
-        uint256 _balanceBefore = token.balanceOf(address(this));
-        token.safeTransferFrom(_msgSender(), address(this), _amount);
-        uint256 _lockedAmount = token.balanceOf(address(this)) - _balanceBefore;
+        uint256 balanceBefore_ = VSP.balanceOf(address(this));
+        VSP.safeTransferFrom(_msgSender(), address(this), amount_);
+        uint256 _lockedAmount = VSP.balanceOf(address(this)) - balanceBefore_;
         require(_lockedAmount > 0, "nothing-to-lock");
 
-        uint256 _boostedAmount = (_lockedAmount * _lockPeriod * MAXIMUM_BOOST) / MAXIMUM_LOCK_PERIOD;
+        uint256 _boostedAmount = (_lockedAmount * lockPeriod_ * MAXIMUM_BOOST) / MAXIMUM_LOCK_PERIOD;
 
-        tokenId++;
+        locked[account_] += _lockedAmount;
+        boosted[account_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
-
-        balances[tokenId] = Balance({
+        uint256 tokenId_ = bond.mint(account_);
+        stakeData[tokenId_] = StakeData({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
-            unlockTime: block.timestamp + _lockPeriod
+            unlockTime: block.timestamp + lockPeriod_
         });
-
-        bond.mint(_account, tokenId);
     }
 
     function _claimable(
-        address _rewardToken,
-        address _account,
-        uint256 _totalSupply,
-        uint256 _balance
+        address rewardToken_,
+        address account_,
+        uint256 totalSupply_,
+        uint256 balance_
     ) private returns (uint256) {
         // TODO
     }
 
     function _updateReward(
-        address _rewardToken,
-        address _account,
-        uint256 _totalSupply,
-        uint256 _balance
+        address rewardToken_,
+        address account_,
+        uint256 totalSupply_,
+        uint256 balance_
     ) internal {
-        uint256 _rewardPerTokenStored = _rewardPerToken(_rewardToken, _totalSupply);
-        Reward storage _rewardData = rewardData[_rewardToken];
-        _rewardData.rewardPerTokenStored = _rewardPerTokenStored;
-        _rewardData.lastUpdateTime = lastTimeRewardApplicable(_rewardToken);
-        if (_account != address(0)) {
-            rewards[_rewardToken][_account] = _claimable(_rewardToken, _account, _totalSupply, _balance);
-            userRewardPerTokenPaid[_rewardToken][_account] = _rewardPerTokenStored;
+        uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
+        Reward storage rewardData_ = rewardData[rewardToken_];
+        rewardData_.rewardPerTokenStored = _rewardPerTokenStored;
+        rewardData_.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
+        if (account_ != address(0)) {
+            rewards[rewardToken_][account_] = _claimable(rewardToken_, account_, totalSupply_, balance_);
+            userRewardPerTokenPaid[rewardToken_][account_] = _rewardPerTokenStored;
         }
     }
 
-    function _withdraw(uint256 _tokenId) internal {
-        Balance memory balance = balances[_tokenId];
-        require(block.timestamp > balance.unlockTime, "not-unlocked-yet");
-        address _account = bond.ownerOf(_tokenId);
-        bond.burn(tokenId);
-        totalLocked -= balance.lockedAmount;
-        totalBoosted -= balance.boostedAmount;
-        token.safeTransfer(_account, balance.lockedAmount);
+    function _withdraw(uint256 tokenId_) internal {
+        StakeData memory stakeData_ = stakeData[tokenId_];
+        require(block.timestamp > stakeData_.unlockTime, "not-unlocked-yet");
+        address account_ = bond.ownerOf(tokenId_);
+        bond.burn(tokenId_);
+        totalLocked -= stakeData_.lockedAmount;
+        totalBoosted -= stakeData_.boostedAmount;
+        VSP.safeTransfer(account_, stakeData_.lockedAmount);
     }
 }
