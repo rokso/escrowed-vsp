@@ -32,7 +32,7 @@ contract VSPBond is IVSPBond, ERC721 {
         _burn(tokenId_);
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId) internal override { 
+    function _beforeTokenTransfer(address from_, address to_, uint256 tokenId_) internal override { 
         // TODO:
         // updateReward(from);
         // updateReward(to);
