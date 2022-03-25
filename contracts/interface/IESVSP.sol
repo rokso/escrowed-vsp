@@ -6,10 +6,37 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 interface IESVSP is IERC20, IERC20Metadata {
+    /// Emitted after reward added
+    event RewardAdded(address indexed rewardToken, uint256 reward, uint256 rewardDuration);
+    /// Emitted whenever any user claim rewards
+    event RewardPaid(address indexed user, address indexed rewardToken, uint256 reward);
+    /// Emitted after adding new rewards token into rewardTokens array
+    event RewardTokenAdded(address indexed rewardToken, address[] existingRewardTokens);
+
+    // TODO: add more events
+
+    function addRewardToken(
+        address rewardsToken_,
+        address distributor_,
+        bool isBoosted_
+    ) external;
+
+    function claimRewards(address account_) external;
+
+    function claimableRewards(address account_)
+        external
+        view
+        returns (address[] memory rewardTokens_, uint256[] memory claimableAmounts_);
+
     function lock(uint256 amount_, uint256 lockPeriod_) external;
+
     function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external;
+
     function updateReward(address account_) external;
+
     function withdraw(uint256 tokenId_) external;
+
     function lastTimeRewardApplicable(address _rewardToken) external view returns (uint256);
+
     function lockedBalanceOf(address account_) external view returns (uint256);
 }

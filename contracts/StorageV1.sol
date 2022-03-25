@@ -4,7 +4,7 @@ pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interface/IESVSP.sol";
-import "./interface/IVSPBond.sol";
+import "./interface/IESVSP721.sol";
 
 abstract contract StorageV1 is IESVSP {
     struct StakeData {
@@ -25,8 +25,7 @@ abstract contract StorageV1 is IESVSP {
     uint8 public decimals;
     string public name;
     string public symbol;
-    // TODO: rename
-    IVSPBond public bond; // nft contract
+    IESVSP721 public esVSP721; // nft contract
 
     uint256 public totalLocked; // VSP staked accumulator
     uint256 public totalBoosted; // boostedAmount accumulator
@@ -37,7 +36,7 @@ abstract contract StorageV1 is IESVSP {
     /// Reward token to valid/invalid flag mapping
     mapping(address => bool) public isRewardToken;
 
-    // Bond => staked
+    // tokenId => staked
     mapping(uint256 => StakeData) public stakeData;
 
     // RewardToken => Reward data
