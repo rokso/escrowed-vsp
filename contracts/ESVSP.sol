@@ -6,6 +6,11 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./access/Governable.sol";
 import "./StorageV1.sol";
 
+// TODO: if user lock for some duration and do not withdraw from contract after expiry, it continue earn rewards on boosted amount.
+// Need solution for this.
+// Public should be able to call kick(user), kick(tokeId) method to remove expired lot from rewards. This remove boosted amount if locked time passed.
+// When user interact with contract/claim rewards, update/boosted amount. Iterate all 721 owned by user and remove from list if expiry passed.
+
 /**
  * @title Non-transferable escrowed VSP.
  */
