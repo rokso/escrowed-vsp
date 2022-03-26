@@ -1,41 +1,28 @@
 import {BigNumber} from '@ethersproject/bignumber'
+import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
+import {parseEther} from 'ethers/lib/utils'
 import {ethers, network} from 'hardhat'
 
-export const HOUR = BigNumber.from(60 * 60)
-export const DEFAULT_TWAP_PERIOD = HOUR.mul('2')
-export const BLOCKS_PER_YEAR = 2102400
+export const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
+export const VSP_HOLDER = '0xe04a484e20365a7b5d7a420b61a0175a5c1bf04f'
+
+export const MINUTE = BigNumber.from(60)
+export const HOUR = MINUTE.mul(60)
+export const DAY = HOUR.mul(24)
+export const WEEK = DAY.mul(7)
+export const MONTH = DAY.mul(30)
+export const YEAR = DAY.mul(365)
 
 export const increaseTime = async (timeToIncrease: BigNumber): Promise<void> => {
   await ethers.provider.send('evm_increaseTime', [timeToIncrease.toNumber()])
   await ethers.provider.send('evm_mine', [])
 }
 
-export const enableForking = async (): Promise<void> => {
-  await network.provider.request({
-    method: 'hardhat_reset',
-    params: [
-      {
-        forking: {
-          jsonRpcUrl: process.env.NODE_URL,
-          // using 13359500 as default block if not provided
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          blockNumber: parseInt(process.env.BLOCK_NUMBER!) || 13359500 
-        },
-      },
-    ],
-  })
-}
-
-export const disableForking = async (): Promise<void> => {
-  await network.provider.request({
-    method: 'hardhat_reset',
-    params: [],
-  })
-}
-
-export const setEtherBalance = async (address: string, value: BigNumber): Promise<void> => {
+export const impersonateAccount = async (address: string): Promise<SignerWithAddress> => {
+  await network.provider.request({method: 'hardhat_impersonateAccount', params: [address]})
   await network.provider.request({
     method: 'hardhat_setBalance',
-    params: [address, ethers.utils.hexStripZeros(value.toHexString())],
+    params: [address, ethers.utils.hexStripZeros(parseEther('1000000').toHexString())],
   })
+  return await ethers.getSigner(address)
 }

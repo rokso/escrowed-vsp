@@ -17,11 +17,16 @@ import "./StorageV1.sol";
 contract ESVSP is Governable, StorageV1 {
     using SafeERC20 for IERC20;
     string public constant VERSION = "1.0.0";
-    IERC20 internal constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
-    uint256 internal constant MINIMUM_LOCK_PERIOD = 7 days;
-    uint256 internal constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
-    uint256 internal constant MAXIMUM_BOOST = 4;
-    uint256 internal constant REWARD_DURATION = 30 days;
+    IERC20 public constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
+    uint256 public constant MINIMUM_LOCK_PERIOD = 7 days;
+    uint256 public constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
+    uint256 public constant MAXIMUM_BOOST = 4;
+    uint256 public constant REWARD_DURATION = 30 days;
+
+    /**
+     * @notice Emitted when a new position is created (i.e. when user locks VSP)
+     */
+    event VspLocked(address account, uint256 amount, uint256 lockPeriod, uint256 tokenId);
 
     function initialize(
         string memory name_,
@@ -29,7 +34,7 @@ contract ESVSP is Governable, StorageV1 {
         uint8 decimals_,
         IESVSP721 esVSP721_
     ) public initializer {
-        require(address(esVSP721_) != address(0), "esVSP721-is-zero");
+        require(address(esVSP721_) != address(0), "esVSP721-is-null");
         name = name_;
         symbol = symbol_;
         decimals = decimals_;
@@ -175,6 +180,7 @@ contract ESVSP is Governable, StorageV1 {
      * @return users boost VSP balance. Boost VSP > locked VSP
      */
     function balanceOf(address account_) public view override returns (uint256) {
+        // TODO: We can rename `boosted` to `balanceOf` and get rid of this function
         return boosted[account_];
     }
 
@@ -191,6 +197,7 @@ contract ESVSP is Governable, StorageV1 {
      * @return users locked VSP balance
      */
     function lockedBalanceOf(address account_) public view virtual override returns (uint256) {
+        // TODO: We can rename `locked` to `lockedBalanceOf` and get rid of this function
         return locked[account_];
     }
 
@@ -198,6 +205,7 @@ contract ESVSP is Governable, StorageV1 {
      * @notice Total boosted amount.
      */
     function totalSupply() public view virtual override returns (uint256) {
+        // TODO: We can rename `totalBoosted` to `totalSupply` and get rid of this function
         return totalBoosted;
     }
 
@@ -274,7 +282,7 @@ contract ESVSP is Governable, StorageV1 {
         uint256 lockPeriod_,
         address account_
     ) internal {
-        require(amount_ > 0, "amount-zero");
+        require(amount_ > 0, "amount-is-zero");
         require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
         require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
 
@@ -289,12 +297,14 @@ contract ESVSP is Governable, StorageV1 {
         boosted[account_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
-        uint256 tokenId_ = esVSP721.mint(account_);
-        stakeData[tokenId_] = StakeData({
+        uint256 _tokenId = esVSP721.mint(account_);
+        stakeData[_tokenId] = StakeData({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
             unlockTime: block.timestamp + lockPeriod_
         });
+
+        emit VspLocked(account_, amount_, lockPeriod_, _tokenId);
     }
 
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {

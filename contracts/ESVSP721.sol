@@ -20,7 +20,7 @@ contract ESVSP721 is IESVSP721, ERC721 {
     }
 
     function mint(address to_) external returns (uint256) {
-        require(msg.sender == esVSP, "SB: mint not smartYield");
+        require(msg.sender == esVSP, "not-esvsp");
         tokenId++;
         uint256 _tokenId = tokenId;
         _mint(to_, _tokenId);
@@ -28,11 +28,15 @@ contract ESVSP721 is IESVSP721, ERC721 {
     }
 
     function burn(uint256 tokenId_) external {
-        require(msg.sender == esVSP, "SB: burn not smartYield");
+        require(msg.sender == esVSP, "not-esvsp");
         _burn(tokenId_);
     }
 
-    function _beforeTokenTransfer(address from_, address to_, uint256 tokenId_) internal override { 
+    function _beforeTokenTransfer(
+        address from_,
+        address to_,
+        uint256 tokenId_
+    ) internal override {
         // TODO:
         // updateReward(from);
         // updateReward(to);
