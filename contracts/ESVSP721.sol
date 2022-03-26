@@ -4,6 +4,7 @@ pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "./interface/IESVSP.sol";
 import "./interface/IESVSP721.sol";
 
 // TODO: Should use enumerable ERC721?
@@ -37,13 +38,10 @@ contract ESVSP721 is IESVSP721, ERC721 {
         address to_,
         uint256 tokenId_
     ) internal override {
-        // TODO:
-        // updateReward(from);
-        // updateReward(to);
-        // locked[from] -= _lockedAmount;
-        // boosted[from] -= _boostedAmount;
-        // locked[to] += _lockedAmount;
-        // boosted[to] += _boostedAmount;
+        // TODO: Create test case covering transfer to address(0) scenario
+        if (from_ != address(0) && to_ != address(0)) {
+            IESVSP(esVSP).transferPosition(tokenId_, to_);
+        }
     }
 
     // TODO: add base URI

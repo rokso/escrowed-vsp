@@ -26,7 +26,12 @@ contract ESVSP is Governable, StorageV1 {
     /**
      * @notice Emitted when a new position is created (i.e. when user locks VSP)
      */
-    event VspLocked(address account, uint256 amount, uint256 lockPeriod, uint256 tokenId);
+    event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
+
+    /**
+     * @notice Emitted when a new position is created (i.e. when user locks VSP)
+     */
+    event VspWithdrawn(uint256 tokenId, address account, uint256 amount);
 
     function initialize(
         string memory name_,
@@ -148,6 +153,7 @@ contract ESVSP is Governable, StorageV1 {
      * @notice Withdraw VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
+    // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake instead?
     function withdraw(uint256 tokenId_) external override {
         updateReward(_msgSender());
         _withdraw(tokenId_);
@@ -171,6 +177,26 @@ contract ESVSP is Governable, StorageV1 {
             }
             _updateReward(rewardTokens[i], account_, _totalSupply, _userBalance);
         }
+    }
+
+    function transferPosition(uint256 tokenId_, address to_) external {
+        require(_msgSender() == address(esVSP721), "not-esvsp721");
+        address _from = esVSP721.ownerOf(tokenId_);
+
+        updateReward(_from);
+        updateReward(to_);
+
+        StakeData memory _stakeData = stakeData[tokenId_];
+        uint256 _locked = _stakeData.lockedAmount;
+        uint256 _boosted = _stakeData.boostedAmount;
+
+        // TODO: Should these mappings live in NFT contract?
+        // Pros: Since they represents lock positions same as NFT, it would increase code cohesion
+        // Cons: Because they are mostly readed here, the external calls will increase gas cost
+        locked[_from] -= _locked;
+        boosted[_from] -= _boosted;
+        locked[to_] += _locked;
+        boosted[to_] += _boosted;
     }
 
     /**
@@ -256,13 +282,23 @@ contract ESVSP is Governable, StorageV1 {
     }
 
     function _withdraw(uint256 tokenId_) internal {
-        StakeData memory stakeData_ = stakeData[tokenId_];
-        require(block.timestamp > stakeData_.unlockTime, "not-unlocked-yet");
-        address account_ = esVSP721.ownerOf(tokenId_);
+        StakeData memory _stakeData = stakeData[tokenId_];
+        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
+
+        address _account = esVSP721.ownerOf(tokenId_);
+        uint256 _locked = _stakeData.lockedAmount;
+        uint256 _boosted = _stakeData.boostedAmount;
+
         esVSP721.burn(tokenId_);
-        totalLocked -= stakeData_.lockedAmount;
-        totalBoosted -= stakeData_.boostedAmount;
-        VSP.safeTransfer(account_, stakeData_.lockedAmount);
+        delete stakeData[tokenId_];
+        locked[_account] -= _locked;
+        totalLocked -= _locked;
+        boosted[_account] -= _boosted;
+        totalBoosted -= _boosted;
+
+        VSP.safeTransfer(_account, _locked);
+
+        emit VspWithdrawn(tokenId_, _account, _locked);
     }
 
     function _claimable(
@@ -304,7 +340,7 @@ contract ESVSP is Governable, StorageV1 {
             unlockTime: block.timestamp + lockPeriod_
         });
 
-        emit VspLocked(account_, amount_, lockPeriod_, _tokenId);
+        emit VspLocked(_tokenId, account_, amount_, lockPeriod_);
     }
 
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {

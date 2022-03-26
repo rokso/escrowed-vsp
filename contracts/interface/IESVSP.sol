@@ -45,4 +45,6 @@ interface IESVSP is IERC20, IERC20Metadata {
     function lastTimeRewardApplicable(address _rewardToken) external view returns (uint256);
 
     function lockedBalanceOf(address account_) external view returns (uint256);
+
+    function transferPosition(uint256 tokenId_, address to_) external;
 }

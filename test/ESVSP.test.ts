@@ -4,11 +4,12 @@ import {parseEther} from '@ethersproject/units'
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {expect} from 'chai'
 import {BigNumber} from 'ethers'
-import {ethers, network} from 'hardhat'
+import {ethers} from 'hardhat'
 import {ESVSP, ESVSP721, ESVSP721__factory, ESVSP__factory, IERC20, IERC20__factory} from '../typechain'
-import {impersonateAccount, VSP_ADDRESS, VSP_HOLDER, YEAR} from './helpers'
+import {impersonateAccount, increaseTime, VSP_ADDRESS, VSP_HOLDER, YEAR} from './helpers'
 
 describe('ESVSP', function () {
+  let snapshotId: string
   let deployer: SignerWithAddress
   let alice: SignerWithAddress
   let bob: SignerWithAddress
@@ -17,6 +18,7 @@ describe('ESVSP', function () {
   let esVsp: ESVSP
 
   beforeEach(async function () {
+    snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
     ;[deployer, alice, bob] = await ethers.getSigners()
 
@@ -35,15 +37,17 @@ describe('ESVSP', function () {
     esVsp721 = esVsp721.connect(alice)
 
     const vspHolder = await impersonateAccount(VSP_HOLDER)
-    vsp.connect(vspHolder).transfer(alice.address, parseEther('1000'))
-    vsp.connect(vspHolder).transfer(bob.address, parseEther('1000'))
+    await vsp.connect(vspHolder).transfer(alice.address, parseEther('1000000'))
+    await vsp.connect(vspHolder).transfer(bob.address, parseEther('1000000'))
+
+    await vsp.approve(esVsp.address, ethers.constants.MaxUint256)
+  })
+
+  afterEach(async function () {
+    await ethers.provider.send('evm_revert', [snapshotId])
   })
 
   describe('lock', function () {
-    beforeEach(async function () {
-      await vsp.approve(esVsp.address, ethers.constants.MaxUint256)
-    })
-
     it('should revert if amount is zero', async function () {
       // when
       const amount = 0
@@ -104,7 +108,7 @@ describe('ESVSP', function () {
       const expectedUnlockTime = BigNumber.from(now).add(period)
 
       // event
-      await expect(tx).emit(esVsp, 'VspLocked').withArgs(alice.address, amount, period, expectedTokenId)
+      await expect(tx).emit(esVsp, 'VspLocked').withArgs(expectedTokenId, alice.address, amount, period)
 
       // data
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(expectedTokenId)
@@ -142,70 +146,153 @@ describe('ESVSP', function () {
   // })
 
   describe('withdraw', function () {
-    beforeEach('should lock VSP', async function () {})
+    const amount = parseEther('100')
+    const period = YEAR
 
-    it('should revert if caller is not the bond owner', async function () {})
-
-    describe('without rewards', function () {
-      describe('without boosted token', function () {
-        it('should withdraw locked amount', async function () {})
-
-        it('a whale should not dilute other users', async function () {})
-      })
-
-      describe('with boosted token', function () {
-        it('should withdraw locked amount', async function () {})
-
-        it('a whale should not dilute other users', async function () {})
-      })
+    beforeEach(async function () {
+      await esVsp.lock(amount, period)
     })
 
-    describe('with rewards', function () {
-      describe('without boosted token', function () {
-        it('should withdraw locked amount', async function () {})
+    it('should revert if caller is not the bond owner', async function () {
+      // when
+      const tokenId = 1
+      const tx = esVsp.connect(bob).withdraw(tokenId)
 
-        it('a whale should not dilute other users', async function () {})
-      })
+      // then
+      await expect(tx).reverted
+    })
 
-      describe('with boosted token', function () {
-        it('should withdraw locked amount', async function () {})
+    it('should revert if do not reached unlock time', async function () {
+      // when
+      const tokenId = 1
+      const tx = esVsp.withdraw(tokenId)
 
-        it('a whale should not dilute other users', async function () {})
-      })
+      // then
+      await expect(tx).revertedWith('not-unlocked-yet')
+    })
+
+    it('should withdraw locked amount', async function () {
+      // given
+      const balanceBefore = await vsp.balanceOf(alice.address)
+
+      // when
+      await increaseTime(YEAR.add(1))
+
+      const tokenId = 1
+      const tx = esVsp.withdraw(tokenId)
+
+      // then
+      await expect(tx).emit(esVsp, 'VspWithdrawn').withArgs(tokenId, alice.address, amount)
+
+      // data (deleted)
+      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(tokenId)
+      expect(lockedAmount).eq(0)
+      expect(boostedAmount).eq(0)
+      expect(unlockTime).eq(0)
+
+      const locked = await esVsp.locked(alice.address)
+      const totalLocked = await esVsp.totalLocked()
+      expect(locked).eq(totalLocked).eq(0)
+
+      const boosted = await esVsp.boosted(alice.address)
+      const totalBoosted = await esVsp.totalBoosted()
+      expect(boosted).eq(totalBoosted).eq(0)
+
+      // VSP balance
+      const balanceAfter = await vsp.balanceOf(alice.address)
+      expect(balanceAfter.sub(balanceBefore)).eq(amount)
+
+      // nft
+      await expect(esVsp721.ownerOf(tokenId)).reverted
+      expect(await esVsp721.balanceOf(alice.address)).eq(0)
+
+      // erc20
+      expect(await esVsp.totalSupply()).eq(totalBoosted)
+      expect(await esVsp.balanceOf(alice.address)).eq(boosted)
+      expect(await esVsp.lockedBalanceOf(alice.address)).eq(locked)
     })
   })
 
-  describe('notifyRewardAmount', function () {
-    it('should revert if not distributor', async function () {})
+  describe('transferPosition', function () {
+    const tokenId = 1
+    const amount = parseEther('100')
+    const period = YEAR
+    let esVsp721Wallet: SignerWithAddress
 
-    it('should revert if amount is zero', async function () {})
+    beforeEach(async function () {
+      await esVsp.lock(amount, period)
+      esVsp721Wallet = await impersonateAccount(esVsp721.address)
+    })
 
-    it('should revert if reward token is invalid', async function () {})
+    it('should revert if caller is not NFT', async function () {
+      // when
+      const tx = esVsp.connect(bob).transferPosition(tokenId, bob.address)
 
-    it('should notify if now < period finish', async function () {})
+      // then
+      await expect(tx).revertedWith('not-esvsp721')
+    })
 
-    it('should notify if now >= period finish', async function () {})
+    it('should revert if tokenId is invalid', async function () {
+      // when
+      const invalidTokenId = 999
+      const tx = esVsp.connect(esVsp721Wallet).transferPosition(invalidTokenId, bob.address)
 
-    it('should notify when token is boosted', async function () {})
+      // then
+      await expect(tx).reverted
+    })
 
-    it('should notify when token is not boosted', async function () {})
+    it('should transfer position (ERC20-only)', async function () {
+      const totalSupplyBefore = await esVsp.totalSupply()
+      const stakeDataBefore = await esVsp.stakeData(tokenId)
+      expect(await esVsp.lockedBalanceOf(alice.address)).eq(amount)
+      expect(await esVsp.lockedBalanceOf(bob.address)).eq(0)
+      const {boostedAmount: boosted} = stakeDataBefore
+
+      // when
+      const tx = () => esVsp.connect(esVsp721Wallet).transferPosition(tokenId, bob.address)
+
+      // then
+      await expect(tx).changeTokenBalances(esVsp, [alice, bob], [boosted.mul(-1), boosted])
+      const totalSupplyAfter = await esVsp.totalSupply()
+      expect(totalSupplyAfter).eq(totalSupplyBefore)
+      const stakeDataAfter = await esVsp.stakeData(tokenId)
+      expect(stakeDataAfter).deep.eq(stakeDataBefore)
+      expect(await esVsp.lockedBalanceOf(alice.address)).eq(0)
+      expect(await esVsp.lockedBalanceOf(bob.address)).eq(amount)
+    })
   })
 
-  describe('addReward', function () {
-    it('should revert if not governor', async function () {})
+  // describe('notifyRewardAmount', function () {
+  //   it('should revert if not distributor', async function () {})
 
-    it('should revert if reward token is VSP', async function () {})
+  //   it('should revert if amount is zero', async function () {})
 
-    it('should revert if already added', async function () {})
+  //   it('should revert if reward token is invalid', async function () {})
 
-    it('should add reward token', async function () {})
-  })
+  //   it('should notify if now < period finish', async function () {})
 
-  describe('updateReward', function () {
-    it('should update if now < period finish', async function () {})
+  //   it('should notify if now >= period finish', async function () {})
 
-    it('should update if now >= period finish', async function () {})
+  //   it('should notify when token is boosted', async function () {})
 
-    it('should update if user did not lock (???)', async function () {})
-  })
+  //   it('should notify when token is not boosted', async function () {})
+  // })
+
+  // describe('addReward', function () {
+  //   it('should revert if not governor', async function () {})
+
+  //   it('should revert if reward token is VSP', async function () {})
+
+  //   it('should revert if already added', async function () {})
+
+  //   it('should add reward token', async function () {})
+  // })
+
+  // describe('updateReward', function () {
+  //   it('should update if now < period finish', async function () {})
+
+  //   it('should update if now >= period finish', async function () {})
+
+  //   it('should update if user did not lock (???)', async function () {})
+  // })
 })

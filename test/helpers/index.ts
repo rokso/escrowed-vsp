@@ -4,7 +4,7 @@ import {parseEther} from 'ethers/lib/utils'
 import {ethers, network} from 'hardhat'
 
 export const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
-export const VSP_HOLDER = '0xe04a484e20365a7b5d7a420b61a0175a5c1bf04f'
+export const VSP_HOLDER = '0xba4cfe5741b357fa371b506e5db0774abfecf8fc'
 
 export const MINUTE = BigNumber.from(60)
 export const HOUR = MINUTE.mul(60)
