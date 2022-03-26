@@ -224,7 +224,7 @@ describe('ESVSP', function () {
       esVsp721Wallet = await impersonateAccount(esVsp721.address)
     })
 
-    it('should revert if caller is not NFT', async function () {
+    it('should revert if caller is not esVSP721', async function () {
       // when
       const tx = esVsp.connect(bob).transferPosition(tokenId, bob.address)
 

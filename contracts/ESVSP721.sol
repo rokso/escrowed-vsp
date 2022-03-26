@@ -38,7 +38,6 @@ contract ESVSP721 is IESVSP721, ERC721 {
         address to_,
         uint256 tokenId_
     ) internal override {
-        // TODO: Create test case covering transfer to address(0) scenario
         if (from_ != address(0) && to_ != address(0)) {
             IESVSP(esVSP).transferPosition(tokenId_, to_);
         }
