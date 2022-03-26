@@ -29,7 +29,7 @@ contract ESVSP is Governable, StorageV1 {
         uint8 decimals_,
         IESVSP721 esVSP721_
     ) public initializer {
-        require(address(esVSP721) != address(0), "bond-is-zero");
+        require(address(esVSP721) != address(0), "esVSP721-is-zero");
         name = name_;
         symbol = symbol_;
         decimals = decimals_;
@@ -250,8 +250,8 @@ contract ESVSP is Governable, StorageV1 {
     function _withdraw(uint256 tokenId_) internal {
         StakeData memory stakeData_ = stakeData[tokenId_];
         require(block.timestamp > stakeData_.unlockTime, "not-unlocked-yet");
-        address account_ = bond.ownerOf(tokenId_);
-        bond.burn(tokenId_);
+        address account_ = esVSP721.ownerOf(tokenId_);
+        esVSP721.burn(tokenId_);
         totalLocked -= stakeData_.lockedAmount;
         totalBoosted -= stakeData_.boostedAmount;
         VSP.safeTransfer(account_, stakeData_.lockedAmount);
@@ -289,7 +289,7 @@ contract ESVSP is Governable, StorageV1 {
         boosted[account_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
-        uint256 tokenId_ = bond.mint(account_);
+        uint256 tokenId_ = esVSP721.mint(account_);
         stakeData[tokenId_] = StakeData({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
