@@ -23,16 +23,6 @@ contract ESVSP is Governable, StorageV1 {
     uint256 public constant MAXIMUM_BOOST = 4;
     uint256 public constant REWARD_DURATION = 30 days;
 
-    /**
-     * @notice Emitted when a new position is created (i.e. when user locks VSP)
-     */
-    event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
-
-    /**
-     * @notice Emitted when a new position is created (i.e. when user locks VSP)
-     */
-    event VspWithdrawn(uint256 tokenId, address account, uint256 amount);
-
     function initialize(
         string memory name_,
         string memory symbol_,
@@ -147,13 +137,14 @@ contract ESVSP is Governable, StorageV1 {
     ) external onlyGovernor {
         require(rewardData[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
         isRewardDistributor[rewardsToken_][distributor_] = approved_;
+        emit RewardDistributorApprovalUpdated(rewardsToken_, distributor_, approved_);
     }
 
     /**
      * @notice Withdraw VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
-    // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake instead?
+    // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake naming instead?
     function withdraw(uint256 tokenId_) external override {
         updateReward(_msgSender());
         _withdraw(tokenId_);

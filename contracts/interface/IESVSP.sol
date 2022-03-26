@@ -12,6 +12,12 @@ interface IESVSP is IERC20, IERC20Metadata {
     event RewardPaid(address indexed user, address indexed rewardToken, uint256 reward);
     /// Emitted after adding new rewards token into rewardTokens array
     event RewardTokenAdded(address indexed rewardToken, address[] existingRewardTokens);
+    /// Emitted when a new position is created (i.e. when user locks VSP)
+    event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
+    /// Emitted when a position is burned (i.e. when user withdraws VSP)
+    event VspWithdrawn(uint256 tokenId, address account, uint256 amount);
+    /// Emitted when distributor approval is updated
+    event RewardDistributorApprovalUpdated(address rewardsToken, address distributor, bool approved);
 
     // TODO: add more events
 

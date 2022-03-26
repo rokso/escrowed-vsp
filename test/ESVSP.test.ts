@@ -6,12 +6,23 @@ import {expect} from 'chai'
 import {BigNumber} from 'ethers'
 import {ethers} from 'hardhat'
 import {ESVSP, ESVSP721, ESVSP721__factory, ESVSP__factory, IERC20, IERC20__factory} from '../typechain'
-import {impersonateAccount, increaseTime, VSP_ADDRESS, VSP_HOLDER, YEAR} from './helpers'
+import {
+  impersonateAccount,
+  increaseTime,
+  VSP_ADDRESS,
+  VSP_HOLDER,
+  YEAR,
+  USDC_ADDRESS,
+  WETH_ADDRESS,
+  timestampFromLatestBlock,
+} from './helpers'
 
 describe('ESVSP', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
+  let governor: SignerWithAddress
   let alice: SignerWithAddress
+  let distributor: SignerWithAddress
   let bob: SignerWithAddress
   let vsp: IERC20
   let esVsp721: ESVSP721
@@ -20,7 +31,7 @@ describe('ESVSP', function () {
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, alice, bob] = await ethers.getSigners()
+    ;[deployer, governor, distributor, alice, bob] = await ethers.getSigners()
 
     const esVspFactory = new ESVSP__factory(deployer)
     esVsp = await esVspFactory.deploy()
@@ -31,6 +42,8 @@ describe('ESVSP', function () {
     await esVsp721.deployed()
 
     await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address)
+    await esVsp.transferGovernorship(governor.address)
+    await esVsp.connect(governor).acceptGovernorship()
 
     vsp = IERC20__factory.connect(VSP_ADDRESS, alice)
     esVsp = esVsp.connect(alice)
@@ -104,8 +117,7 @@ describe('ESVSP', function () {
       //
       const expectedTokenId = 1
       const expectedBoostAmount = amount.mul(period).mul(maxBoost).div(maxPeriod)
-      const now = (await ethers.provider.getBlock('latest')).timestamp
-      const expectedUnlockTime = BigNumber.from(now).add(period)
+      const expectedUnlockTime = BigNumber.from(await timestampFromLatestBlock()).add(period)
 
       // event
       await expect(tx).emit(esVsp, 'VspLocked').withArgs(expectedTokenId, alice.address, amount, period)
@@ -262,37 +274,114 @@ describe('ESVSP', function () {
     })
   })
 
-  // describe('notifyRewardAmount', function () {
-  //   it('should revert if not distributor', async function () {})
+  describe('addRewardToken', function () {
+    beforeEach(async function () {
+      esVsp = esVsp.connect(governor)
+    })
 
-  //   it('should revert if amount is zero', async function () {})
+    it('should revert if not governor', async function () {
+      // when
+      const tx = esVsp.connect(alice).addRewardToken(vsp.address, distributor.address, true)
 
-  //   it('should revert if reward token is invalid', async function () {})
+      // then
+      await expect(tx).revertedWith('not-governor')
+    })
 
-  //   it('should notify if now < period finish', async function () {})
+    it('should revert if already added', async function () {
+      // given
+      await esVsp.addRewardToken(WETH_ADDRESS, distributor.address, true)
 
-  //   it('should notify if now >= period finish', async function () {})
+      // when
+      const tx = esVsp.addRewardToken(WETH_ADDRESS, distributor.address, true)
 
-  //   it('should notify when token is boosted', async function () {})
+      // then
+      await expect(tx).revertedWith('reward-already-added')
+    })
 
-  //   it('should notify when token is not boosted', async function () {})
-  // })
+    it('should add reward token', async function () {
+      // when
+      const rewardsTokenAddress = WETH_ADDRESS
+      const tx = esVsp.addRewardToken(rewardsTokenAddress, distributor.address, true)
 
-  // describe('addReward', function () {
-  //   it('should revert if not governor', async function () {})
+      // then
+      await expect(tx).emit(esVsp, 'RewardTokenAdded').withArgs(WETH_ADDRESS, [])
+      const now = await timestampFromLatestBlock()
+      const {isBoosted, periodFinish, rewardRates, rewardPerTokenStored, lastUpdateTime} = await esVsp.rewardData(
+        rewardsTokenAddress
+      )
+      expect(isBoosted).true
+      expect(periodFinish).eq(now)
+      expect(rewardRates).eq(0)
+      expect(rewardPerTokenStored).eq(0)
+      expect(lastUpdateTime).eq(now)
 
-  //   it('should revert if reward token is VSP', async function () {})
+      expect(await esVsp.rewardTokens(0)).eq(rewardsTokenAddress)
+      expect(await esVsp.isRewardDistributor(rewardsTokenAddress, distributor.address)).true
+    })
+  })
 
-  //   it('should revert if already added', async function () {})
+  describe('addUpdateRewardDistributor', function () {
+    beforeEach(async function () {
+      esVsp = esVsp.connect(governor)
+    })
 
-  //   it('should add reward token', async function () {})
-  // })
+    it('should revert if not governor', async function () {
+      // when
+      const tx = esVsp.connect(alice).addUpdateRewardDistributor(vsp.address, distributor.address, true)
 
-  // describe('updateReward', function () {
-  //   it('should update if now < period finish', async function () {})
+      // then
+      await expect(tx).revertedWith('not-governor')
+    })
 
-  //   it('should update if now >= period finish', async function () {})
+    it('should revert if not reward token was not added', async function () {
+      // when
+      const tx = esVsp.addUpdateRewardDistributor(vsp.address, distributor.address, true)
 
-  //   it('should update if user did not lock (???)', async function () {})
-  // })
+      // then
+      await expect(tx).revertedWith('reward-token-not-added')
+    })
+
+    it('should toggle approval', async function () {
+      // given
+      const r = WETH_ADDRESS
+      const d = distributor.address
+
+      await esVsp.addRewardToken(r, d, true)
+
+      // when-then
+      const tx1 = esVsp.addUpdateRewardDistributor(r, d, false)
+      await expect(tx1).emit(esVsp, 'RewardDistributorApprovalUpdated').withArgs(r, d, false)
+      expect(await esVsp.isRewardDistributor(r, d)).false
+
+      const tx2 = esVsp.addUpdateRewardDistributor(r, d, true)
+      await expect(tx2).emit(esVsp, 'RewardDistributorApprovalUpdated').withArgs(r, d, true)
+      expect(await esVsp.isRewardDistributor(r, d)).true
+    })
+  })
+
+  describe('claimRewards', function () {})
+
+  describe('notifyRewardAmount', function () {
+    it('should revert if not distributor', async function () {})
+
+    it('should revert if amount is zero', async function () {})
+
+    it('should revert if reward token is invalid', async function () {})
+
+    it('should notify if now < period finish', async function () {})
+
+    it('should notify if now >= period finish', async function () {})
+
+    it('should notify when token is boosted', async function () {})
+
+    it('should notify when token is not boosted', async function () {})
+  })
+
+  describe('updateReward', function () {
+    it('should update if now < period finish', async function () {})
+
+    it('should update if now >= period finish', async function () {})
+
+    it('should update if user did not lock (???)', async function () {})
+  })
 })
