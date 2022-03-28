@@ -594,8 +594,6 @@ describe('ESVSP', function () {
     })
   })
 
-  describe('claimRewards', function () {})
-
   describe('updateReward', function () {
     it('should update if now < period finish', async function () {})
 
@@ -603,4 +601,8 @@ describe('ESVSP', function () {
 
     it('should update if user did not lock (???)', async function () {})
   })
+
+  describe('claimableRewards', function () {})
+
+  describe('claimRewards', function () {})
 })
