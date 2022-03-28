@@ -32,6 +32,12 @@ interface IESVSP is IERC20, IERC20Metadata {
 
     function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external;
 
+    function setRewardDistributorApproval(
+        address rewardsToken_,
+        address distributor_,
+        bool approved_
+    ) external;
+
     function updateReward(address account_) external;
 
     function withdraw(uint256 tokenId_) external;

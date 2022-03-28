@@ -29,7 +29,7 @@ contract ESVSP is Governable, StorageV1 {
         uint8 decimals_,
         IESVSP721 esVSP721_
     ) public initializer {
-        require(address(esVSP721) != address(0), "esVSP721-is-zero");
+        require(address(esVSP721_) != address(0), "esVSP721-is-zero");
         name = name_;
         symbol = symbol_;
         decimals = decimals_;
@@ -58,16 +58,6 @@ contract ESVSP is Governable, StorageV1 {
         emit RewardTokenAdded(rewardsToken_, rewardTokens);
         rewardTokens.push(rewardsToken_);
         isRewardDistributor[rewardsToken_][distributor_] = true;
-    }
-
-    // Modify approval for an address to call notifyRewardAmount
-    function addUpdateRewardDistributor(
-        address rewardsToken_,
-        address distributor_,
-        bool approved_
-    ) external onlyGovernor {
-        require(rewardData[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
-        isRewardDistributor[rewardsToken_][distributor_] = approved_;
     }
 
     /**
@@ -137,6 +127,16 @@ contract ESVSP is Governable, StorageV1 {
         require(rewardAmount_ > 0, "incorrect-reward-amount");
         require(isRewardToken[rewardToken_], "invalid-reward-token");
         _notifyRewardAmount(rewardToken_, rewardAmount_);
+    }
+
+    // Modify approval for an address to call notifyRewardAmount
+    function setRewardDistributorApproval(
+        address rewardsToken_,
+        address distributor_,
+        bool approved_
+    ) external onlyGovernor {
+        require(rewardData[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
+        isRewardDistributor[rewardsToken_][distributor_] = approved_;
     }
 
     /**
