@@ -16,6 +16,7 @@ import {
   WETH_ADDRESS,
   timestampFromLatestBlock,
   WETH_HOLDER,
+  DAY,
 } from './helpers'
 
 describe('ESVSP', function () {
@@ -368,8 +369,6 @@ describe('ESVSP', function () {
 
   describe('notifyRewardAmount', function () {
     beforeEach(async function () {
-      await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
-
       esVsp = esVsp.connect(distributor)
 
       await weth.connect(distributor).approve(esVsp.address, ethers.constants.MaxUint256)
@@ -384,6 +383,9 @@ describe('ESVSP', function () {
     })
 
     it('should revert if amount is zero', async function () {
+      // given
+      await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
+
       // when
       const tx = esVsp.notifyRewardAmount(WETH_ADDRESS, 0)
 
@@ -401,14 +403,14 @@ describe('ESVSP', function () {
 
     describe('should notify when token is boosted', function () {
       beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
         await esVsp.connect(alice).lock(parseEther('100'), YEAR)
       })
 
-      it('should notify if now >= period finish', async function () {
+      it('should notify if now >= period finish (1st notification)', async function () {
         // given
         const duration = await esVsp.REWARD_DURATION()
         const balanceBefore = await weth.balanceOf(esVsp.address)
-        // console.log(formatEther(await weth.balanceOf(distributor.address)))
 
         // when
         const rewardToken = WETH_ADDRESS
@@ -432,10 +434,164 @@ describe('ESVSP', function () {
         expect(lastUpdateTime).eq(now)
       })
 
-      it('should notify if now < period finish', async function () {})
+      it('should notify if now >= period finish', async function () {
+        // given
+        const duration = await esVsp.REWARD_DURATION()
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await increaseTime(duration.add(1))
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(rewardToken)
+        const balanceBefore = await weth.balanceOf(esVsp.address)
+
+        // when
+        const tx = esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        // then
+        await expect(tx).emit(esVsp, 'RewardAdded').withArgs(rewardToken, amount, duration)
+        const now = await timestampFromLatestBlock()
+
+        const balanceAfter = await weth.balanceOf(esVsp.address)
+        expect(balanceAfter.sub(balanceBefore)).eq(amount)
+
+        const expectedRewardRates = amount.div(duration)
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(amount)
+          .mul(parseEther('1'))
+          .div(await esVsp.totalBoosted())
+
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await esVsp.rewardData(rewardToken)
+        expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(rewardRates).eq(expectedRewardRates)
+        expect(periodFinish).eq(now + duration.toNumber())
+        expect(lastUpdateTime).eq(now)
+      })
+
+      it('should notify if now < period finish', async function () {
+        // given
+        const duration = await esVsp.REWARD_DURATION()
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const halfPeriod = duration.div(2)
+        await increaseTime(halfPeriod)
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(rewardToken)
+
+        // when
+        const tx = esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        // then
+        await expect(tx).emit(esVsp, 'RewardAdded').withArgs(rewardToken, amount, duration)
+        const now = await timestampFromLatestBlock()
+
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(amount.div(2))
+          .mul(parseEther('1'))
+          .div(await esVsp.totalBoosted())
+
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await esVsp.rewardData(rewardToken)
+        expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(rewardRates).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
+        expect(periodFinish).eq(now + duration.toNumber())
+        expect(lastUpdateTime).eq(now)
+      })
     })
 
-    it('should notify when token is not boosted', async function () {})
+    describe('should notify when token is not boosted', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, false)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+      })
+
+      it('should notify if now >= period finish (1st notification)', async function () {
+        // given
+        const duration = await esVsp.REWARD_DURATION()
+        const balanceBefore = await weth.balanceOf(esVsp.address)
+
+        // when
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30') // 1 ETH daily
+        const tx = esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        // then
+        await expect(tx).emit(esVsp, 'RewardAdded').withArgs(rewardToken, amount, duration)
+        const now = await timestampFromLatestBlock()
+
+        const balanceAfter = await weth.balanceOf(esVsp.address)
+        expect(balanceAfter.sub(balanceBefore)).eq(amount)
+
+        const expectedRewardRates = amount.div(duration)
+        const expectedRewardPerToken = 0 // TODO: Is this correct?
+
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await esVsp.rewardData(rewardToken)
+        expect(rewardPerTokenStored).eq(expectedRewardPerToken)
+        expect(rewardRates).eq(expectedRewardRates)
+        expect(periodFinish).eq(now + duration.toNumber())
+        expect(lastUpdateTime).eq(now)
+      })
+
+      it('should notify if now >= period finish', async function () {
+        // given
+        const duration = await esVsp.REWARD_DURATION()
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await increaseTime(duration.add(1))
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(rewardToken)
+        const balanceBefore = await weth.balanceOf(esVsp.address)
+
+        // when
+        const tx = esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        // then
+        await expect(tx).emit(esVsp, 'RewardAdded').withArgs(rewardToken, amount, duration)
+        const now = await timestampFromLatestBlock()
+
+        const balanceAfter = await weth.balanceOf(esVsp.address)
+        expect(balanceAfter.sub(balanceBefore)).eq(amount)
+
+        const expectedRewardRates = amount.div(duration)
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(amount)
+          .mul(parseEther('1'))
+          .div(await esVsp.totalLocked())
+
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await esVsp.rewardData(rewardToken)
+        expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(rewardRates).eq(expectedRewardRates)
+        expect(periodFinish).eq(now + duration.toNumber())
+        expect(lastUpdateTime).eq(now)
+      })
+
+      it('should notify if now < period finish', async function () {
+        // given
+        const duration = await esVsp.REWARD_DURATION()
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const halfPeriod = duration.div(2)
+        await increaseTime(halfPeriod)
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(rewardToken)
+
+        // when
+        const tx = esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        // then
+        await expect(tx).emit(esVsp, 'RewardAdded').withArgs(rewardToken, amount, duration)
+        const now = await timestampFromLatestBlock()
+
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(parseEther('15'))
+          .mul(parseEther('1'))
+          .div(await esVsp.totalLocked())
+
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await esVsp.rewardData(rewardToken)
+        expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(rewardRates).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
+        expect(periodFinish).eq(now + duration.toNumber())
+        expect(lastUpdateTime).eq(now)
+      })
+    })
   })
 
   describe('claimRewards', function () {})

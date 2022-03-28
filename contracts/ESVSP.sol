@@ -239,21 +239,21 @@ contract ESVSP is Governable, StorageV1 {
 
     function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
         IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
-        Reward storage rewardData_ = rewardData[rewardToken_];
-        uint256 totalSupply_ = rewardData_.isBoosted ? totalBoosted : totalLocked;
-        rewardData_.rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
-        if (block.timestamp >= rewardData_.periodFinish) {
-            rewardData_.rewardRates = rewardAmount_ / REWARD_DURATION;
+        Reward storage _rewardData = rewardData[rewardToken_];
+        uint256 _totalSupply = _rewardData.isBoosted ? totalBoosted : totalLocked;
+        _rewardData.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
+        if (block.timestamp >= _rewardData.periodFinish) {
+            _rewardData.rewardRates = rewardAmount_ / REWARD_DURATION;
         } else {
-            uint256 remainingPeriod_ = rewardData_.periodFinish - block.timestamp;
-            uint256 leftover_ = remainingPeriod_ * rewardData_.rewardRates;
-            rewardData_.rewardRates = (rewardAmount_ + leftover_) / REWARD_DURATION;
+            uint256 _remainingPeriod = _rewardData.periodFinish - block.timestamp;
+            uint256 _leftover = _remainingPeriod * _rewardData.rewardRates;
+            _rewardData.rewardRates = (rewardAmount_ + _leftover) / REWARD_DURATION;
         }
 
         // Start new drip time
         // TODO: Want we to use "drip" or "notify" naming?
-        rewardData_.lastUpdateTime = block.timestamp;
-        rewardData_.periodFinish = block.timestamp + REWARD_DURATION;
+        _rewardData.lastUpdateTime = block.timestamp;
+        _rewardData.periodFinish = block.timestamp + REWARD_DURATION;
         emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
     }
 
@@ -338,14 +338,14 @@ contract ESVSP is Governable, StorageV1 {
     /// @notice Returns the reward per VSP locked based on time elapsed since last notification multiplied by reward rate
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
         if (totalSupply_ == 0) {
-            // TODO: What will happen with amount deposited when totalSupply is 0?
+            // TODO: What will happen with the amount deposited when `totalSupply_` is 0?
             return rewardData[rewardToken_].rewardPerTokenStored;
         }
 
-        uint256 timeSinceLastUpdate_ = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
-        uint256 rewardsSinceLastUpdate_ = timeSinceLastUpdate_ * rewardData[rewardToken_].rewardRates;
-        uint256 rewardsPerTokenSinceLastUpdate_ = (rewardsSinceLastUpdate_ * 1e18) / totalSupply_;
-        return rewardData[rewardToken_].rewardPerTokenStored + rewardsPerTokenSinceLastUpdate_;
+        uint256 _timeSinceLastUpdate = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
+        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewardData[rewardToken_].rewardRates;
+        uint256 _rewardsPerTokenSinceLastUpdate = (_rewardsSinceLastUpdate * 1e18) / totalSupply_;
+        return rewardData[rewardToken_].rewardPerTokenStored + _rewardsPerTokenSinceLastUpdate;
     }
 
     /** Methods not supported  */
