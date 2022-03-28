@@ -1,6 +1,6 @@
 /* eslint-disable new-cap */
 /* eslint-disable camelcase */
-import {parseEther} from '@ethersproject/units'
+import {formatEther, parseEther, parseUnits} from '@ethersproject/units'
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {expect} from 'chai'
 import {BigNumber} from 'ethers'
@@ -15,6 +15,7 @@ import {
   USDC_ADDRESS,
   WETH_ADDRESS,
   timestampFromLatestBlock,
+  WETH_HOLDER,
 } from './helpers'
 
 describe('ESVSP', function () {
@@ -25,6 +26,7 @@ describe('ESVSP', function () {
   let distributor: SignerWithAddress
   let bob: SignerWithAddress
   let vsp: IERC20
+  let weth: IERC20
   let esVsp721: ESVSP721
   let esVsp: ESVSP
 
@@ -54,6 +56,11 @@ describe('ESVSP', function () {
     await vsp.connect(vspHolder).transfer(bob.address, parseEther('1000000'))
 
     await vsp.approve(esVsp.address, ethers.constants.MaxUint256)
+
+    weth = IERC20__factory.connect(WETH_ADDRESS, distributor)
+    const wethHolder = await impersonateAccount(WETH_HOLDER)
+    await weth.connect(wethHolder).transfer(alice.address, parseEther('100'))
+    await weth.connect(wethHolder).transfer(distributor.address, parseEther('1000'))
   })
 
   afterEach(async function () {
@@ -327,7 +334,7 @@ describe('ESVSP', function () {
 
     it('should revert if not governor', async function () {
       // when
-      const tx = esVsp.connect(alice).addUpdateRewardDistributor(vsp.address, distributor.address, true)
+      const tx = esVsp.connect(alice).setRewardDistributorApproval(vsp.address, distributor.address, true)
 
       // then
       await expect(tx).revertedWith('not-governor')
@@ -335,7 +342,7 @@ describe('ESVSP', function () {
 
     it('should revert if not reward token was not added', async function () {
       // when
-      const tx = esVsp.addUpdateRewardDistributor(vsp.address, distributor.address, true)
+      const tx = esVsp.setRewardDistributorApproval(vsp.address, distributor.address, true)
 
       // then
       await expect(tx).revertedWith('reward-token-not-added')
@@ -349,33 +356,89 @@ describe('ESVSP', function () {
       await esVsp.addRewardToken(r, d, true)
 
       // when-then
-      const tx1 = esVsp.addUpdateRewardDistributor(r, d, false)
+      const tx1 = esVsp.setRewardDistributorApproval(r, d, false)
       await expect(tx1).emit(esVsp, 'RewardDistributorApprovalUpdated').withArgs(r, d, false)
       expect(await esVsp.isRewardDistributor(r, d)).false
 
-      const tx2 = esVsp.addUpdateRewardDistributor(r, d, true)
+      const tx2 = esVsp.setRewardDistributorApproval(r, d, true)
       await expect(tx2).emit(esVsp, 'RewardDistributorApprovalUpdated').withArgs(r, d, true)
       expect(await esVsp.isRewardDistributor(r, d)).true
     })
   })
 
-  describe('claimRewards', function () {})
-
   describe('notifyRewardAmount', function () {
-    it('should revert if not distributor', async function () {})
+    beforeEach(async function () {
+      await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
 
-    it('should revert if amount is zero', async function () {})
+      esVsp = esVsp.connect(distributor)
 
-    it('should revert if reward token is invalid', async function () {})
+      await weth.connect(distributor).approve(esVsp.address, ethers.constants.MaxUint256)
+    })
 
-    it('should notify if now < period finish', async function () {})
+    it('should revert if not distributor', async function () {
+      // when
+      const tx = esVsp.connect(alice).notifyRewardAmount(WETH_ADDRESS, parseEther('0.1'))
 
-    it('should notify if now >= period finish', async function () {})
+      // then
+      await expect(tx).revertedWith('not-distributor')
+    })
 
-    it('should notify when token is boosted', async function () {})
+    it('should revert if amount is zero', async function () {
+      // when
+      const tx = esVsp.notifyRewardAmount(WETH_ADDRESS, 0)
+
+      // then
+      await expect(tx).revertedWith('incorrect-reward-amount')
+    })
+
+    it('should revert if reward token is invalid', async function () {
+      // when
+      const tx = esVsp.notifyRewardAmount(USDC_ADDRESS, parseUnits('100', 6))
+
+      // then
+      await expect(tx).reverted
+    })
+
+    describe('should notify when token is boosted', function () {
+      beforeEach(async function () {
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+      })
+
+      it('should notify if now >= period finish', async function () {
+        // given
+        const duration = await esVsp.REWARD_DURATION()
+        const balanceBefore = await weth.balanceOf(esVsp.address)
+        // console.log(formatEther(await weth.balanceOf(distributor.address)))
+
+        // when
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30') // 1 ETH daily
+        const tx = esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        // then
+        await expect(tx).emit(esVsp, 'RewardAdded').withArgs(rewardToken, amount, duration)
+        const now = await timestampFromLatestBlock()
+
+        const balanceAfter = await weth.balanceOf(esVsp.address)
+        expect(balanceAfter.sub(balanceBefore)).eq(amount)
+
+        const expectedRewardRates = amount.div(duration)
+        const expectedRewardPerToken = 0 // TODO: Is this correct?
+
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await esVsp.rewardData(rewardToken)
+        expect(rewardPerTokenStored).eq(expectedRewardPerToken)
+        expect(rewardRates).eq(expectedRewardRates)
+        expect(periodFinish).eq(now + duration.toNumber())
+        expect(lastUpdateTime).eq(now)
+      })
+
+      it('should notify if now < period finish', async function () {})
+    })
 
     it('should notify when token is not boosted', async function () {})
   })
+
+  describe('claimRewards', function () {})
 
   describe('updateReward', function () {
     it('should update if now < period finish', async function () {})

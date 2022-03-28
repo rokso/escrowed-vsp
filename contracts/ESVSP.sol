@@ -125,7 +125,8 @@ contract ESVSP is Governable, StorageV1 {
     function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
-        require(isRewardToken[rewardToken_], "invalid-reward-token");
+        // TODO: Check this line, seems that won't never reaches false because of the 1st require
+        require(rewardData[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         _notifyRewardAmount(rewardToken_, rewardAmount_);
     }
 
@@ -203,8 +204,7 @@ contract ESVSP is Governable, StorageV1 {
 
     /// @notice Returns timestamp of last reward update
     function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
-        uint256 periodFinish_ = rewardData[_rewardToken].periodFinish;
-        return Math.min(block.timestamp, periodFinish_);
+        return Math.min(block.timestamp, rewardData[_rewardToken].periodFinish);
     }
 
     /**
@@ -251,6 +251,7 @@ contract ESVSP is Governable, StorageV1 {
         }
 
         // Start new drip time
+        // TODO: Want we to use "drip" or "notify" naming?
         rewardData_.lastUpdateTime = block.timestamp;
         rewardData_.periodFinish = block.timestamp + REWARD_DURATION;
         emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
@@ -334,8 +335,10 @@ contract ESVSP is Governable, StorageV1 {
         emit VspLocked(_tokenId, account_, amount_, lockPeriod_);
     }
 
+    /// @notice Returns the reward per VSP locked based on time elapsed since last notification multiplied by reward rate
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
         if (totalSupply_ == 0) {
+            // TODO: What will happen with amount deposited when totalSupply is 0?
             return rewardData[rewardToken_].rewardPerTokenStored;
         }
 
