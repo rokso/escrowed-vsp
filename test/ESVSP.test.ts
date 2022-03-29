@@ -1,6 +1,6 @@
 /* eslint-disable new-cap */
 /* eslint-disable camelcase */
-import {formatEther, parseEther, parseUnits} from '@ethersproject/units'
+import {parseEther, parseUnits} from '@ethersproject/units'
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {expect} from 'chai'
 import {BigNumber} from 'ethers'
@@ -706,11 +706,116 @@ describe('ESVSP', function () {
   })
 
   describe('updateReward', function () {
-    it('should update if now < period finish', async function () {})
+    beforeEach(async function () {
+      await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, false)
+      await esVsp.connect(alice).lock(parseEther('100'), YEAR)
 
-    it('should update if now >= period finish', async function () {})
+      const rewardToken = WETH_ADDRESS
+      const amount = parseEther('30')
+      await weth.connect(distributor).approve(esVsp.address, amount)
+      await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+    })
 
-    it('should update if user did not lock (???)', async function () {})
+    it('should update global state only if account is null', async function () {
+      // given
+      const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} = await esVsp.rewardData(
+        WETH_ADDRESS
+      )
+
+      // when
+      const elapsedTime = DAY.mul(10)
+      await increaseTime(elapsedTime)
+      await esVsp.updateReward(ethers.constants.AddressZero)
+
+      // then
+      const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+        WETH_ADDRESS
+      )
+      expect(rewardPerTokenAfter).gt(rewardPerTokenBefore)
+      expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+    })
+
+    it('should give no rewards if account did not lock', async function () {
+      // given
+      const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, carl.address)
+      expect(rewardsBefore).eq(0)
+
+      // when
+      const elapsedTime = DAY.mul(10)
+      await increaseTime(elapsedTime)
+      await esVsp.updateReward(carl.address)
+
+      // then
+      const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, carl.address)
+      expect(rewardsAfter).eq(0)
+    })
+
+    it('should update if now < period finish', async function () {
+      // given
+      const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} = await esVsp.rewardData(
+        WETH_ADDRESS
+      )
+      const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, alice.address)
+      expect(rewardsBefore).eq(0)
+      const claimableBefore = await esVsp.claimableRewards(alice.address)
+      expect(claimableBefore._claimableAmounts[0]).eq(0)
+
+      // when
+      const elapsedTime = DAY.mul(10)
+      await increaseTime(elapsedTime)
+      await esVsp.updateReward(alice.address)
+
+      const expectDrip = parseEther('10')
+      const expectedRewardPerToken = rewardPerTokenBefore
+        .add(expectDrip)
+        .mul(parseEther('1'))
+        .div(await esVsp.totalLocked())
+
+      // then
+      const claimableAfter = await esVsp.claimableRewards(alice.address)
+      expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
+
+      const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+        WETH_ADDRESS
+      )
+      const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, alice.address)
+      expect(rewardsAfter).closeTo(expectDrip, parseEther('0.0001'))
+      expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+      expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+    })
+
+    it('should update if now >= period finish', async function () {
+      // given
+      const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(WETH_ADDRESS)
+      const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, alice.address)
+      expect(rewardsBefore).eq(0)
+      const claimableBefore = await esVsp.claimableRewards(alice.address)
+      expect(claimableBefore._claimableAmounts[0]).eq(0)
+      const {periodFinish} = await esVsp.rewardData(WETH_ADDRESS)
+
+      // when
+      const elapsedTime = YEAR
+      await increaseTime(elapsedTime)
+      await esVsp.updateReward(alice.address)
+
+      const expectDrip = parseEther('30')
+      const expectedRewardPerToken = rewardPerTokenBefore
+        .add(expectDrip)
+        .mul(parseEther('1'))
+        .div(await esVsp.totalLocked())
+
+      // then
+      const claimableAfter = await esVsp.claimableRewards(alice.address)
+      expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
+
+      const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+        WETH_ADDRESS
+      )
+      const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, alice.address)
+      expect(rewardsAfter).closeTo(expectDrip, parseEther('0.0001'))
+      expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+      expect(lastUpdateTimeAfter).closeTo(periodFinish, 5)
+    })
   })
 
   describe('claimRewards', function () {})
