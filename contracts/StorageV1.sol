@@ -33,10 +33,13 @@ abstract contract StorageV1 is IESVSP {
     // TODO: See if worth replace these with Enumerable
     /// Array of reward tokens
     address[] public rewardTokens;
+    // TODO: We need this mapping?
     /// Reward token to valid/invalid flag mapping
-    mapping(address => bool) public isRewardToken;
+    // mapping(address => bool) public isRewardToken;
 
     // tokenId => staked
+    // TODO: What is the best naming to use uniformly among codebase 1) Lock 2) Stake or 3) Escrow?
+    // TODO: Rename to lockPositions or similar?
     mapping(uint256 => StakeData) public stakeData;
 
     // RewardToken => Reward data
@@ -56,5 +59,5 @@ abstract contract StorageV1 is IESVSP {
 
     // RewardToken -> distributor -> is approved to add rewards
     mapping(address => mapping(address => bool)) public isRewardDistributor;
-    // TODO: add supporting methods to add new reward token 
+    // TODO: add supporting methods to add new reward token
 }

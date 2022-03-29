@@ -24,7 +24,7 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: Run npm install with node v${{ matrix.node }}
-        run: npm install
+        run: npm i
 
       - name: Running tests
-        run: npm test
+        run: npx hardhat typechain && npm t

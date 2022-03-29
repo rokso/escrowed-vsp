@@ -17,11 +17,11 @@ import "./StorageV1.sol";
 contract ESVSP is Governable, StorageV1 {
     using SafeERC20 for IERC20;
     string public constant VERSION = "1.0.0";
-    IERC20 internal constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
-    uint256 internal constant MINIMUM_LOCK_PERIOD = 7 days;
-    uint256 internal constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
-    uint256 internal constant MAXIMUM_BOOST = 4;
-    uint256 internal constant REWARD_DURATION = 30 days;
+    IERC20 public constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
+    uint256 public constant MINIMUM_LOCK_PERIOD = 7 days;
+    uint256 public constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
+    uint256 public constant MAXIMUM_BOOST = 4;
+    uint256 public constant REWARD_DURATION = 30 days;
 
     function initialize(
         string memory name_,
@@ -29,7 +29,7 @@ contract ESVSP is Governable, StorageV1 {
         uint8 decimals_,
         IESVSP721 esVSP721_
     ) public initializer {
-        require(address(esVSP721_) != address(0), "esVSP721-is-zero");
+        require(address(esVSP721_) != address(0), "esVSP721-is-null");
         name = name_;
         symbol = symbol_;
         decimals = decimals_;
@@ -125,7 +125,8 @@ contract ESVSP is Governable, StorageV1 {
     function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
-        require(isRewardToken[rewardToken_], "invalid-reward-token");
+        // TODO: Check this line, seems that won't never reaches false because of the 1st require
+        require(rewardData[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         _notifyRewardAmount(rewardToken_, rewardAmount_);
     }
 
@@ -137,12 +138,14 @@ contract ESVSP is Governable, StorageV1 {
     ) external onlyGovernor {
         require(rewardData[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
         isRewardDistributor[rewardsToken_][distributor_] = approved_;
+        emit RewardDistributorApprovalUpdated(rewardsToken_, distributor_, approved_);
     }
 
     /**
      * @notice Withdraw VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
+    // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake naming instead?
     function withdraw(uint256 tokenId_) external override {
         updateReward(_msgSender());
         _withdraw(tokenId_);
@@ -168,6 +171,26 @@ contract ESVSP is Governable, StorageV1 {
         }
     }
 
+    function transferPosition(uint256 tokenId_, address to_) external {
+        require(_msgSender() == address(esVSP721), "not-esvsp721");
+        address _from = esVSP721.ownerOf(tokenId_);
+
+        updateReward(_from);
+        updateReward(to_);
+
+        StakeData memory _stakeData = stakeData[tokenId_];
+        uint256 _locked = _stakeData.lockedAmount;
+        uint256 _boosted = _stakeData.boostedAmount;
+
+        // TODO: Should these mappings live in NFT contract?
+        // Pros: Since they represents lock positions same as NFT, it would increase code cohesion
+        // Cons: Because they are mostly readed here, the external calls will increase gas cost
+        locked[_from] -= _locked;
+        boosted[_from] -= _boosted;
+        locked[to_] += _locked;
+        boosted[to_] += _boosted;
+    }
+
     /**
      * @notice Get boosted VSP balance of user. This is different than ESVSP721.balanceOf()
      * It is sum of boosted amount of VSP in each ERC721 ( i.e. ESVSP721) token of user
@@ -175,13 +198,13 @@ contract ESVSP is Governable, StorageV1 {
      * @return users boost VSP balance. Boost VSP > locked VSP
      */
     function balanceOf(address account_) public view override returns (uint256) {
+        // TODO: We can rename `boosted` to `balanceOf` and get rid of this function
         return boosted[account_];
     }
 
     /// @notice Returns timestamp of last reward update
     function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
-        uint256 periodFinish_ = rewardData[_rewardToken].periodFinish;
-        return Math.min(block.timestamp, periodFinish_);
+        return Math.min(block.timestamp, rewardData[_rewardToken].periodFinish);
     }
 
     /**
@@ -191,6 +214,7 @@ contract ESVSP is Governable, StorageV1 {
      * @return users locked VSP balance
      */
     function lockedBalanceOf(address account_) public view virtual override returns (uint256) {
+        // TODO: We can rename `locked` to `lockedBalanceOf` and get rid of this function
         return locked[account_];
     }
 
@@ -198,6 +222,7 @@ contract ESVSP is Governable, StorageV1 {
      * @notice Total boosted amount.
      */
     function totalSupply() public view virtual override returns (uint256) {
+        // TODO: We can rename `totalBoosted` to `totalSupply` and get rid of this function
         return totalBoosted;
     }
 
@@ -214,20 +239,21 @@ contract ESVSP is Governable, StorageV1 {
 
     function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
         IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
-        Reward storage rewardData_ = rewardData[rewardToken_];
-        uint256 totalSupply_ = rewardData_.isBoosted ? totalBoosted : totalLocked;
-        rewardData_.rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
-        if (block.timestamp >= rewardData_.periodFinish) {
-            rewardData_.rewardRates = rewardAmount_ / REWARD_DURATION;
+        Reward storage _rewardData = rewardData[rewardToken_];
+        uint256 _totalSupply = _rewardData.isBoosted ? totalBoosted : totalLocked;
+        _rewardData.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
+        if (block.timestamp >= _rewardData.periodFinish) {
+            _rewardData.rewardRates = rewardAmount_ / REWARD_DURATION;
         } else {
-            uint256 remainingPeriod_ = rewardData_.periodFinish - block.timestamp;
-            uint256 leftover_ = remainingPeriod_ * rewardData_.rewardRates;
-            rewardData_.rewardRates = (rewardAmount_ + leftover_) / REWARD_DURATION;
+            uint256 _remainingPeriod = _rewardData.periodFinish - block.timestamp;
+            uint256 _leftover = _remainingPeriod * _rewardData.rewardRates;
+            _rewardData.rewardRates = (rewardAmount_ + _leftover) / REWARD_DURATION;
         }
 
         // Start new drip time
-        rewardData_.lastUpdateTime = block.timestamp;
-        rewardData_.periodFinish = block.timestamp + REWARD_DURATION;
+        // TODO: Want we to use "drip" or "notify" naming?
+        _rewardData.lastUpdateTime = block.timestamp;
+        _rewardData.periodFinish = block.timestamp + REWARD_DURATION;
         emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
     }
 
@@ -248,13 +274,23 @@ contract ESVSP is Governable, StorageV1 {
     }
 
     function _withdraw(uint256 tokenId_) internal {
-        StakeData memory stakeData_ = stakeData[tokenId_];
-        require(block.timestamp > stakeData_.unlockTime, "not-unlocked-yet");
-        address account_ = esVSP721.ownerOf(tokenId_);
+        StakeData memory _stakeData = stakeData[tokenId_];
+        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
+
+        address _account = esVSP721.ownerOf(tokenId_);
+        uint256 _locked = _stakeData.lockedAmount;
+        uint256 _boosted = _stakeData.boostedAmount;
+
         esVSP721.burn(tokenId_);
-        totalLocked -= stakeData_.lockedAmount;
-        totalBoosted -= stakeData_.boostedAmount;
-        VSP.safeTransfer(account_, stakeData_.lockedAmount);
+        delete stakeData[tokenId_];
+        locked[_account] -= _locked;
+        totalLocked -= _locked;
+        boosted[_account] -= _boosted;
+        totalBoosted -= _boosted;
+
+        VSP.safeTransfer(_account, _locked);
+
+        emit VspWithdrawn(tokenId_, _account, _locked);
     }
 
     function _claimable(
@@ -274,7 +310,7 @@ contract ESVSP is Governable, StorageV1 {
         uint256 lockPeriod_,
         address account_
     ) internal {
-        require(amount_ > 0, "amount-zero");
+        require(amount_ > 0, "amount-is-zero");
         require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
         require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
 
@@ -289,23 +325,27 @@ contract ESVSP is Governable, StorageV1 {
         boosted[account_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
-        uint256 tokenId_ = esVSP721.mint(account_);
-        stakeData[tokenId_] = StakeData({
+        uint256 _tokenId = esVSP721.mint(account_);
+        stakeData[_tokenId] = StakeData({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
             unlockTime: block.timestamp + lockPeriod_
         });
+
+        emit VspLocked(_tokenId, account_, amount_, lockPeriod_);
     }
 
+    /// @notice Returns the reward per VSP locked based on time elapsed since last notification multiplied by reward rate
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
         if (totalSupply_ == 0) {
+            // TODO: What will happen with the amount deposited when `totalSupply_` is 0?
             return rewardData[rewardToken_].rewardPerTokenStored;
         }
 
-        uint256 timeSinceLastUpdate_ = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
-        uint256 rewardsSinceLastUpdate_ = timeSinceLastUpdate_ * rewardData[rewardToken_].rewardRates;
-        uint256 rewardsPerTokenSinceLastUpdate_ = (rewardsSinceLastUpdate_ * 1e18) / totalSupply_;
-        return rewardData[rewardToken_].rewardPerTokenStored + rewardsPerTokenSinceLastUpdate_;
+        uint256 _timeSinceLastUpdate = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
+        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewardData[rewardToken_].rewardRates;
+        uint256 _rewardsPerTokenSinceLastUpdate = (_rewardsSinceLastUpdate * 1e18) / totalSupply_;
+        return rewardData[rewardToken_].rewardPerTokenStored + _rewardsPerTokenSinceLastUpdate;
     }
 
     /** Methods not supported  */
