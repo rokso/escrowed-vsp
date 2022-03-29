@@ -6,11 +6,6 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./access/Governable.sol";
 import "./StorageV1.sol";
 
-// TODO: if user lock for some duration and do not withdraw from contract after expiry, it continue earn rewards on boosted amount.
-// Need solution for this.
-// Public should be able to call kick(user), kick(tokeId) method to remove expired lot from rewards. This remove boosted amount if locked time passed.
-// When user interact with contract/claim rewards, update/boosted amount. Iterate all 721 owned by user and remove from list if expiry passed.
-
 /**
  * @title Non-transferable escrowed VSP.
  */
@@ -153,6 +148,17 @@ contract ESVSP is Governable, StorageV1 {
     function withdraw(uint256 tokenId_) external override {
         updateReward(_msgSender());
         _withdraw(tokenId_);
+    }
+
+    /**
+     * @notice Anyone can call withdraw for a given expired position
+     * @param tokenId_ ERC721 tokenId
+     */
+    // TODO: Add kick(user) method. When user interact with contract/claim rewards, update/boosted amount. Iterate all 721 owned by user and remove from list if expiry passed.
+    function kick(uint256 tokenId_) external override {
+        updateReward(_msgSender());
+        _withdraw(tokenId_);
+        emit PositionKicked(tokenId_);
     }
 
     /**

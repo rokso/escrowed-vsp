@@ -18,6 +18,8 @@ interface IESVSP is IERC20, IERC20Metadata {
     event VspWithdrawn(uint256 tokenId, address account, uint256 amount);
     /// Emitted when distributor approval is updated
     event RewardDistributorApprovalUpdated(address rewardsToken, address distributor, bool approved);
+    /// Emitted when a position is kicked (i.e. when expired)
+    event PositionKicked(uint256 tokenId);
 
     // TODO: add more events
 
@@ -47,6 +49,8 @@ interface IESVSP is IERC20, IERC20Metadata {
     function updateReward(address account_) external;
 
     function withdraw(uint256 tokenId_) external;
+
+    function kick(uint256 tokenId_) external;
 
     function lastTimeRewardApplicable(address _rewardToken) external view returns (uint256);
 
