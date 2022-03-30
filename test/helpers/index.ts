@@ -31,11 +31,7 @@ export const setEtherBalance = async (address: string, value: BigNumber): Promis
 
 export const impersonateAccount = async (address: string): Promise<SignerWithAddress> => {
   await network.provider.request({method: 'hardhat_impersonateAccount', params: [address]})
-  // await setEtherBalance(address, parseEther('1000000'))
-  await network.provider.request({
-    method: 'hardhat_setBalance',
-    params: [address, ethers.utils.hexStripZeros(parseEther('1000000').toHexString())],
-  })
+  await setEtherBalance(address, parseEther('1000000'))
   return await ethers.getSigner(address)
 }
 

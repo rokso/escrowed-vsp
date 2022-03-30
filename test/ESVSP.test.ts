@@ -1,6 +1,6 @@
 /* eslint-disable new-cap */
 /* eslint-disable camelcase */
-import {formatEther, parseEther, parseUnits} from '@ethersproject/units'
+import {parseEther, parseUnits} from '@ethersproject/units'
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {expect} from 'chai'
 import {BigNumber} from 'ethers'
@@ -17,24 +17,28 @@ import {
   timestampFromLatestBlock,
   WETH_HOLDER,
   DAY,
+  MONTH,
+  USDC_HOLDER,
 } from './helpers'
 
 describe('ESVSP', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
   let governor: SignerWithAddress
-  let alice: SignerWithAddress
   let distributor: SignerWithAddress
+  let alice: SignerWithAddress
   let bob: SignerWithAddress
+  let carl: SignerWithAddress
   let vsp: IERC20
   let weth: IERC20
+  let usdc: IERC20
   let esVsp721: ESVSP721
   let esVsp: ESVSP
 
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, governor, distributor, alice, bob] = await ethers.getSigners()
+    ;[deployer, governor, distributor, alice, bob, carl] = await ethers.getSigners()
 
     const esVspFactory = new ESVSP__factory(deployer)
     esVsp = await esVspFactory.deploy()
@@ -55,13 +59,23 @@ describe('ESVSP', function () {
     const vspHolder = await impersonateAccount(VSP_HOLDER)
     await vsp.connect(vspHolder).transfer(alice.address, parseEther('1000000'))
     await vsp.connect(vspHolder).transfer(bob.address, parseEther('1000000'))
+    await vsp.connect(vspHolder).transfer(carl.address, parseEther('1000000'))
 
     await vsp.approve(esVsp.address, ethers.constants.MaxUint256)
+    await vsp.connect(bob).approve(esVsp.address, ethers.constants.MaxUint256)
+    await vsp.connect(carl).approve(esVsp.address, ethers.constants.MaxUint256)
 
     weth = IERC20__factory.connect(WETH_ADDRESS, distributor)
     const wethHolder = await impersonateAccount(WETH_HOLDER)
     await weth.connect(wethHolder).transfer(alice.address, parseEther('100'))
+    await weth.connect(wethHolder).transfer(carl.address, parseEther('1000'))
     await weth.connect(wethHolder).transfer(distributor.address, parseEther('1000'))
+
+    usdc = IERC20__factory.connect(USDC_ADDRESS, distributor)
+    const usdcHolder = await impersonateAccount(USDC_HOLDER)
+    await usdc.connect(usdcHolder).transfer(alice.address, parseUnits('100', 6))
+    await usdc.connect(usdcHolder).transfer(carl.address, parseUnits('1000', 6))
+    await usdc.connect(usdcHolder).transfer(distributor.address, parseUnits('1000', 6))
   })
 
   afterEach(async function () {
@@ -594,15 +608,431 @@ describe('ESVSP', function () {
     })
   })
 
-  describe('updateReward', function () {
-    it('should update if now < period finish', async function () {})
+  describe('claimableRewards', function () {
+    describe('when token is boosted ', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+        await esVsp.connect(bob).lock(parseEther('100'), YEAR.mul(2))
 
-    it('should update if now >= period finish', async function () {})
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await weth.connect(distributor).approve(esVsp.address, amount)
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
 
-    it('should update if user did not lock (???)', async function () {})
+        await increaseTime(DAY.mul(10))
+      })
+
+      it('should get correct claimable rewards', async function () {
+        // when
+        const {_rewardTokens: _rewardTokensOfAlice, _claimableAmounts: _claimableAmountsOfAlice} =
+          await esVsp.claimableRewards(alice.address)
+        const [tokenOfAlice] = _rewardTokensOfAlice
+        const [claimableOfAlice] = _claimableAmountsOfAlice
+        const {_rewardTokens: _rewardTokensOfBob, _claimableAmounts: _claimableAmountsOfBob} =
+          await esVsp.claimableRewards(bob.address)
+        const [tokenOfBob] = _rewardTokensOfBob
+        const [claimableOfBob] = _claimableAmountsOfBob
+
+        // then
+        expect(tokenOfAlice).eq(tokenOfBob).eq(WETH_ADDRESS)
+        expect(claimableOfAlice).closeTo(parseEther('3.3333'), parseEther('0.0001'))
+        expect(claimableOfBob).closeTo(parseEther('6.6666'), parseEther('0.0001'))
+      })
+
+      it('a new deposit should not dilute other accounts', async function () {
+        // given
+        await esVsp.connect(carl).lock(parseEther('1000'), YEAR)
+
+        // when
+        const {_rewardTokens: _rewardTokensOfAlice, _claimableAmounts: _claimableAmountsOfAlice} =
+          await esVsp.claimableRewards(alice.address)
+        const [tokenOfAlice] = _rewardTokensOfAlice
+        const [claimableOfAlice] = _claimableAmountsOfAlice
+        const {_rewardTokens: _rewardTokensOfBob, _claimableAmounts: _claimableAmountsOfBob} =
+          await esVsp.claimableRewards(bob.address)
+        const [tokenOfBob] = _rewardTokensOfBob
+        const [claimableOfBob] = _claimableAmountsOfBob
+
+        // then
+        expect(tokenOfAlice).eq(tokenOfBob).eq(WETH_ADDRESS)
+        expect(claimableOfAlice).closeTo(parseEther('3.3333'), parseEther('0.0001'))
+        expect(claimableOfBob).closeTo(parseEther('6.6666'), parseEther('0.0001'))
+      })
+    })
+
+    describe('when token is not boosted', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, false)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+        await esVsp.connect(bob).lock(parseEther('100'), YEAR.mul(2))
+
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await weth.connect(distributor).approve(esVsp.address, amount)
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+
+        await increaseTime(DAY.mul(10))
+      })
+
+      it('should get correct claimable rewards', async function () {
+        // when
+        const {_rewardTokens: _rewardTokensOfAlice, _claimableAmounts: _claimableAmountsOfAlice} =
+          await esVsp.claimableRewards(alice.address)
+        const [tokenOfAlice] = _rewardTokensOfAlice
+        const [claimableOfAlice] = _claimableAmountsOfAlice
+        const {_rewardTokens: _rewardTokensOfBob, _claimableAmounts: _claimableAmountsOfBob} =
+          await esVsp.claimableRewards(bob.address)
+        const [tokenOfBob] = _rewardTokensOfBob
+        const [claimableOfBob] = _claimableAmountsOfBob
+
+        // then
+        expect(tokenOfAlice).eq(tokenOfBob).eq(WETH_ADDRESS)
+        expect(claimableOfAlice).closeTo(parseEther('5'), parseEther('0.0001'))
+        expect(claimableOfBob).closeTo(parseEther('5'), parseEther('0.0001'))
+      })
+
+      it('a new deposit should not dilute other accounts', async function () {
+        // given
+        await esVsp.connect(carl).lock(parseEther('1000'), YEAR)
+
+        // when
+        const {_rewardTokens: _rewardTokensOfAlice, _claimableAmounts: _claimableAmountsOfAlice} =
+          await esVsp.claimableRewards(alice.address)
+        const [tokenOfAlice] = _rewardTokensOfAlice
+        const [claimableOfAlice] = _claimableAmountsOfAlice
+        const {_rewardTokens: _rewardTokensOfBob, _claimableAmounts: _claimableAmountsOfBob} =
+          await esVsp.claimableRewards(bob.address)
+        const [tokenOfBob] = _rewardTokensOfBob
+        const [claimableOfBob] = _claimableAmountsOfBob
+
+        // then
+        expect(tokenOfAlice).eq(tokenOfBob).eq(WETH_ADDRESS)
+        expect(claimableOfAlice).closeTo(parseEther('5'), parseEther('0.0001'))
+        expect(claimableOfBob).closeTo(parseEther('5'), parseEther('0.0001'))
+      })
+    })
   })
 
-  describe('claimableRewards', function () {})
+  describe('updateReward', function () {
+    describe('when token is boosted', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
 
-  describe('claimRewards', function () {})
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await weth.connect(distributor).approve(esVsp.address, ethers.constants.MaxUint256)
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+      })
+
+      it('should update global state only if account is null', async function () {
+        // given
+        const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
+          await esVsp.rewardData(WETH_ADDRESS)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(ethers.constants.AddressZero)
+
+        // then
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+          WETH_ADDRESS
+        )
+        expect(rewardPerTokenAfter).gt(rewardPerTokenBefore)
+        expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+      })
+
+      it('should give no rewards if account did not lock', async function () {
+        // given
+        const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, carl.address)
+        expect(rewardsBefore).eq(0)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(carl.address)
+
+        // then
+        const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, carl.address)
+        expect(rewardsAfter).eq(0)
+      })
+
+      it('should update if now < period finish', async function () {
+        // given
+        const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
+          await esVsp.rewardData(WETH_ADDRESS)
+        const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsBefore).eq(0)
+        const claimableBefore = await esVsp.claimableRewards(alice.address)
+        expect(claimableBefore._claimableAmounts[0]).eq(0)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(alice.address)
+
+        const expectDrip = parseEther('10')
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(expectDrip)
+          .mul(parseEther('1'))
+          .div(await esVsp.totalBoosted())
+
+        // then
+        const claimableAfter = await esVsp.claimableRewards(alice.address)
+        expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
+
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+          WETH_ADDRESS
+        )
+        const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsAfter).closeTo(expectDrip, parseEther('0.0001'))
+        expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+      })
+
+      it('should update if now >= period finish', async function () {
+        // given
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(WETH_ADDRESS)
+        const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsBefore).eq(0)
+        const claimableBefore = await esVsp.claimableRewards(alice.address)
+        expect(claimableBefore._claimableAmounts[0]).eq(0)
+        const {periodFinish} = await esVsp.rewardData(WETH_ADDRESS)
+
+        // when
+        const elapsedTime = YEAR
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(alice.address)
+
+        const expectDrip = parseEther('30')
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(expectDrip)
+          .mul(parseEther('1'))
+          .div(await esVsp.totalBoosted())
+
+        // then
+        const claimableAfter = await esVsp.claimableRewards(alice.address)
+        expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
+
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+          WETH_ADDRESS
+        )
+        const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsAfter).closeTo(expectDrip, parseEther('0.0001'))
+        expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(lastUpdateTimeAfter).closeTo(periodFinish, 5)
+      })
+
+      // FIXME
+      it.skip('should not continue receiving rewards after lock period finishes', async function () {
+        // given
+        const tokenId = 1
+        const {unlockTime} = await esVsp.stakeData(tokenId)
+        const now = await timestampFromLatestBlock()
+        await increaseTime(BigNumber.from(now).add(unlockTime))
+        const before = await esVsp.claimableRewards(alice.address)
+        const [claimableBefore] = before._claimableAmounts
+
+        // when
+        await esVsp.connect(distributor).notifyRewardAmount(WETH_ADDRESS, parseEther('30'))
+        await increaseTime(MONTH)
+        await esVsp.updateReward(alice.address)
+
+        // then
+        const after = await esVsp.claimableRewards(alice.address)
+        const [claimableAfter] = after._claimableAmounts
+        expect(claimableAfter).eq(claimableBefore)
+      })
+    })
+
+    describe('when token is not boosted', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, false)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await weth.connect(distributor).approve(esVsp.address, ethers.constants.MaxUint256)
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+      })
+
+      it('should update global state only if account is null', async function () {
+        // given
+        const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
+          await esVsp.rewardData(WETH_ADDRESS)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(ethers.constants.AddressZero)
+
+        // then
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+          WETH_ADDRESS
+        )
+        expect(rewardPerTokenAfter).gt(rewardPerTokenBefore)
+        expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+      })
+
+      it('should give no rewards if account did not lock', async function () {
+        // given
+        const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, carl.address)
+        expect(rewardsBefore).eq(0)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(carl.address)
+
+        // then
+        const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, carl.address)
+        expect(rewardsAfter).eq(0)
+      })
+
+      it('should update if now < period finish', async function () {
+        // given
+        const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
+          await esVsp.rewardData(WETH_ADDRESS)
+        const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsBefore).eq(0)
+        const claimableBefore = await esVsp.claimableRewards(alice.address)
+        expect(claimableBefore._claimableAmounts[0]).eq(0)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(alice.address)
+
+        const expectDrip = parseEther('10')
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(expectDrip)
+          .mul(parseEther('1'))
+          .div(await esVsp.totalLocked())
+
+        // then
+        const claimableAfter = await esVsp.claimableRewards(alice.address)
+        expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
+
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+          WETH_ADDRESS
+        )
+        const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsAfter).closeTo(expectDrip, parseEther('0.0001'))
+        expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+      })
+
+      it('should update if now >= period finish', async function () {
+        // given
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await esVsp.rewardData(WETH_ADDRESS)
+        const rewardsBefore = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsBefore).eq(0)
+        const claimableBefore = await esVsp.claimableRewards(alice.address)
+        expect(claimableBefore._claimableAmounts[0]).eq(0)
+        const {periodFinish} = await esVsp.rewardData(WETH_ADDRESS)
+
+        // when
+        const elapsedTime = YEAR
+        await increaseTime(elapsedTime)
+        await esVsp.updateReward(alice.address)
+
+        const expectDrip = parseEther('30')
+        const expectedRewardPerToken = rewardPerTokenBefore
+          .add(expectDrip)
+          .mul(parseEther('1'))
+          .div(await esVsp.totalLocked())
+
+        // then
+        const claimableAfter = await esVsp.claimableRewards(alice.address)
+        expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
+
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await esVsp.rewardData(
+          WETH_ADDRESS
+        )
+        const rewardsAfter = await esVsp.rewards(WETH_ADDRESS, alice.address)
+        expect(rewardsAfter).closeTo(expectDrip, parseEther('0.0001'))
+        expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
+        expect(lastUpdateTimeAfter).closeTo(periodFinish, 5)
+      })
+
+      // FIXME
+      it.skip('should not continue receiving rewards after lock period finishes', async function () {
+        // given
+        const tokenId = 1
+        const {unlockTime} = await esVsp.stakeData(tokenId)
+        const now = await timestampFromLatestBlock()
+        await increaseTime(BigNumber.from(now).add(unlockTime))
+        const before = await esVsp.claimableRewards(alice.address)
+        const [claimableBefore] = before._claimableAmounts
+
+        // when
+        await esVsp.connect(distributor).notifyRewardAmount(WETH_ADDRESS, parseEther('30'))
+        await increaseTime(MONTH)
+        await esVsp.updateReward(alice.address)
+
+        // then
+        const after = await esVsp.claimableRewards(alice.address)
+        const [claimableAfter] = after._claimableAmounts
+        expect(claimableAfter).eq(claimableBefore)
+      })
+    })
+  })
+
+  describe('claimRewards', function () {
+    describe('18 decimals reward token', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, false)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+
+        const rewardToken = WETH_ADDRESS
+        const amount = parseEther('30')
+        await weth.connect(distributor).approve(esVsp.address, amount)
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+      })
+
+      it('should claim pending rewards', async function () {
+        // given
+        await increaseTime(MONTH)
+        const {_claimableAmounts} = await esVsp.claimableRewards(alice.address)
+        const [claimable] = _claimableAmounts
+        expect(claimable).closeTo(parseEther('30'), parseEther('0.0001'))
+
+        // when
+        const tx = () => esVsp.claimRewards(alice.address)
+
+        // then
+        await expect(tx).changeTokenBalance(weth, alice, claimable)
+        expect(await esVsp.rewards(WETH_ADDRESS, alice.address)).eq(0)
+      })
+    })
+
+    describe('non 18 decimals reward token', function () {
+      beforeEach(async function () {
+        await esVsp.connect(governor).addRewardToken(USDC_ADDRESS, distributor.address, false)
+        await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+
+        const rewardToken = USDC_ADDRESS
+        const amount = parseUnits('30', 6)
+        await usdc.connect(distributor).approve(esVsp.address, amount)
+        await esVsp.connect(distributor).notifyRewardAmount(rewardToken, amount)
+      })
+
+      it('should claim pending rewards', async function () {
+        // given
+        await increaseTime(MONTH)
+        const {_claimableAmounts} = await esVsp.claimableRewards(alice.address)
+        const [claimable] = _claimableAmounts
+        expect(claimable).closeTo(parseUnits('30', 6), parseEther('0.0001'))
+
+        // when
+        const tx = () => esVsp.claimRewards(alice.address)
+
+        // then
+        await expect(tx).changeTokenBalance(usdc, alice, claimable)
+        expect(await esVsp.rewards(USDC_ADDRESS, alice.address)).eq(0)
+      })
+    })
+  })
 })

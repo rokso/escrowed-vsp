@@ -91,19 +91,23 @@ contract ESVSP is Governable, StorageV1 {
         returns (address[] memory _rewardTokens, uint256[] memory _claimableAmounts)
     {
         uint256 _len = rewardTokens.length;
-        uint256 totalSupply_;
-        uint256 userBalance_;
+
+        _rewardTokens = new address[](_len);
+        _claimableAmounts = new uint256[](_len);
+
+        uint256 _totalSupply;
+        uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
             if (rewardData[rewardTokens[i]].isBoosted) {
-                totalSupply_ = totalBoosted;
-                userBalance_ = boosted[account_];
+                _totalSupply = totalBoosted;
+                _userBalance = boosted[account_];
             } else {
-                totalSupply_ = totalLocked;
-                userBalance_ = locked[account_];
+                _totalSupply = totalLocked;
+                _userBalance = locked[account_];
             }
-            _claimableAmounts[i] = _claimable(rewardTokens[i], account_, totalSupply_, userBalance_);
+            _rewardTokens[i] = rewardTokens[i];
+            _claimableAmounts[i] = _claimable(rewardTokens[i], account_, _totalSupply, _userBalance);
         }
-        _rewardTokens = rewardTokens;
     }
 
     /**
