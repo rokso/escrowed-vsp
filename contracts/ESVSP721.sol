@@ -4,11 +4,13 @@ pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "./access/Governable.sol";
 import "./interface/IESVSP.sol";
 import "./interface/IESVSP721.sol";
 
 // TODO: Should use enumerable ERC721?
-contract ESVSP721 is IESVSP721, ERC721 {
+contract ESVSP721 is Governable, IESVSP721, ERC721 {
+    string public baseTokenURI;
     address public esVSP;
     uint256 public tokenId; // tokens counter
 
@@ -20,6 +22,15 @@ contract ESVSP721 is IESVSP721, ERC721 {
         esVSP = esVSP_;
     }
 
+    function burn(uint256 tokenId_) external {
+        require(msg.sender == esVSP, "not-esvsp");
+        _burn(tokenId_);
+    }
+
+    function setBaseTokenURI(string memory baseTokenURI_) public onlyGovernor {
+        baseTokenURI = baseTokenURI_;
+    }
+
     function mint(address to_) external returns (uint256) {
         require(msg.sender == esVSP, "not-esvsp");
         tokenId++;
@@ -28,9 +39,8 @@ contract ESVSP721 is IESVSP721, ERC721 {
         return _tokenId;
     }
 
-    function burn(uint256 tokenId_) external {
-        require(msg.sender == esVSP, "not-esvsp");
-        _burn(tokenId_);
+    function tokenURI(uint256 _tokenId) public view override returns (string memory) {
+        return string(abi.encodePacked(baseTokenURI, Strings.toString(_tokenId)));
     }
 
     function _beforeTokenTransfer(
@@ -42,6 +52,4 @@ contract ESVSP721 is IESVSP721, ERC721 {
             IESVSP(esVSP).transferPosition(tokenId_, to_);
         }
     }
-
-    // TODO: add base URI
 }
