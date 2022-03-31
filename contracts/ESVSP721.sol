@@ -2,14 +2,13 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./access/Governable.sol";
 import "./interface/IESVSP.sol";
 import "./interface/IESVSP721.sol";
 
-// TODO: Should use enumerable ERC721?
-contract ESVSP721 is Governable, IESVSP721, ERC721 {
+contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     string public baseTokenURI;
     address public esVSP;
     uint256 public tokenId; // tokens counter

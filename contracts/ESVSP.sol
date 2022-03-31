@@ -79,6 +79,7 @@ contract ESVSP is Governable, StorageV1 {
             _claimReward(_rewardToken, account_, _reward);
             emit RewardPaid(account_, _rewardToken, _reward);
         }
+        // _kickAllExpiredOf(account_);
     }
 
     function claimableRewards(address account_)
@@ -113,6 +114,7 @@ contract ESVSP is Governable, StorageV1 {
      */
     function lock(uint256 amount_, uint256 lockPeriod_) external override {
         updateReward(_msgSender());
+        _kickAllExpiredOf(_msgSender());
         _lock(amount_, lockPeriod_, _msgSender());
     }
 
@@ -157,16 +159,35 @@ contract ESVSP is Governable, StorageV1 {
     function withdraw(uint256 tokenId_) external override {
         updateReward(_msgSender());
         _withdraw(tokenId_);
+        _kickAllExpiredOf(_msgSender());
     }
 
     /**
      * @notice Anyone can call withdraw for a given expired position
      * @param tokenId_ ERC721 tokenId
      */
-    // TODO: Add kick(user) method. When user interact with contract/claim rewards, update/boosted amount. Iterate all 721 owned by user and remove from list if expiry passed.
     function kick(uint256 tokenId_) external override {
-        updateReward(_msgSender());
+        updateReward(esVSP721.ownerOf(tokenId_));
         _kick(tokenId_);
+    }
+
+    /**
+     * @notice Kick all expired positions from a given account
+     * @param account_ The target account
+     */
+    function kickAllExpiredOf(address account_) external override {
+        updateReward(account_);
+        _kickAllExpiredOf(account_);
+    }
+
+    function _kickAllExpiredOf(address account_) internal {
+        uint256 _len = esVSP721.balanceOf(account_);
+        for (uint256 i = 0; i < _len; ++i) {
+            uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
+            if (block.timestamp > stakeData[_tokenId].unlockTime) {
+                _kick(_tokenId);
+            }
+        }
     }
 
     /**
