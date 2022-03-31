@@ -15,11 +15,13 @@ interface IESVSP is IERC20, IERC20Metadata {
     /// Emitted when a new position is created (i.e. when user locks VSP)
     event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
     /// Emitted when a position is burned (i.e. when user withdraws VSP)
-    event VspWithdrawn(uint256 tokenId, address account, uint256 amount);
+    event VspWithdrawn(uint256 tokenId);
     /// Emitted when distributor approval is updated
     event RewardDistributorApprovalUpdated(address rewardsToken, address distributor, bool approved);
     /// Emitted when a position is kicked (i.e. when expired)
     event PositionKicked(uint256 tokenId);
+    // Emitted when the exit penalty is updated
+    event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
 
     // TODO: add more events
 

@@ -187,7 +187,7 @@ describe('ESVSP', function () {
       await esVsp.lock(amount, period)
     })
 
-    it.skip('should revert if caller is not the bond owner', async function () {
+    it('should revert if caller is not the bond owner', async function () {
       // given
       await increaseTime(YEAR.add(1))
 
@@ -199,16 +199,34 @@ describe('ESVSP', function () {
       await expect(tx).revertedWith('not-position-owner')
     })
 
-    it('should revert if do not reached unlock time', async function () {
-      // when
-      const tokenId = 1
-      const tx = esVsp.withdraw(tokenId)
+    it('should pay exit penalty when withdrawing before unlock time', async function () {
+      // given
+      const penalty = await esVsp.exitPenalty()
+      expect(penalty).eq(parseEther('0.5'))
+      await esVsp.connect(bob).lock(amount, period)
+      await esVsp.connect(carl).lock(amount, period)
 
-      // then
-      await expect(tx).revertedWith('not-unlocked-yet')
+      const aliceBefore = await vsp.balanceOf(alice.address)
+      const bobBefore = await vsp.balanceOf(bob.address)
+      const carlBefore = await vsp.balanceOf(carl.address)
+
+      // when
+      await esVsp.withdraw(1)
+      // just after deposit: full penalty
+      expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('0.001'))
+
+      await increaseTime(YEAR.div(2))
+      await esVsp.connect(bob).withdraw(2)
+      // 6mo layer: half penalty
+      expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('0.001'))
+
+      await increaseTime(YEAR.div(2))
+      await esVsp.connect(carl).withdraw(3)
+      // 1y later: no penalty
+      expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('0.001'))
     })
 
-    it('should withdraw locked amount', async function () {
+    it('should withdraw all locked amount after lock period', async function () {
       // given
       const balanceBefore = await vsp.balanceOf(alice.address)
 
@@ -219,7 +237,7 @@ describe('ESVSP', function () {
       const tx = esVsp.withdraw(tokenId)
 
       // then
-      await expect(tx).emit(esVsp, 'VspWithdrawn').withArgs(tokenId, alice.address, amount)
+      await expect(tx).emit(esVsp, 'VspWithdrawn').withArgs(tokenId)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(tokenId)

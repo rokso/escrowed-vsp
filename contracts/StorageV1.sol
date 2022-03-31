@@ -37,6 +37,12 @@ abstract contract StorageV1 is IESVSP {
     /// Reward token to valid/invalid flag mapping
     // mapping(address => bool) public isRewardToken;
 
+    /**
+     * @notice Fee paid when withdrawing. Decreases linearly as period finish approaches.
+     * @dev Use 18 decimals (e.g. 0.5e18 is 50%)
+     */
+    uint256 public exitPenalty;
+
     // tokenId => staked
     // TODO: What is the best naming to use uniformly among codebase 1) Lock 2) Stake or 3) Escrow?
     // TODO: Rename to lockPositions or similar?

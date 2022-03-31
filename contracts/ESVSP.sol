@@ -29,6 +29,7 @@ contract ESVSP is Governable, StorageV1 {
         symbol = symbol_;
         decimals = decimals_;
         esVSP721 = esVSP721_;
+        exitPenalty = 0.5e18; // 50%;
     }
 
     /**
@@ -140,6 +141,14 @@ contract ESVSP is Governable, StorageV1 {
         emit RewardDistributorApprovalUpdated(rewardsToken_, distributor_, approved_);
     }
 
+    // Modify approval for an address to call notifyRewardAmount
+    function updateExitPenalty(uint256 exitPenalty_) external onlyGovernor {
+        require(exitPenalty_ <= 1e18, "exit-fee-gt-100%");
+        require(exitPenalty_ != exitPenalty, "fee-is-same-as-current");
+        emit ExitPenaltyUpdated(exitPenalty, exitPenalty_);
+        exitPenalty = exitPenalty_;
+    }
+
     /**
      * @notice Withdraw VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
@@ -157,8 +166,7 @@ contract ESVSP is Governable, StorageV1 {
     // TODO: Add kick(user) method. When user interact with contract/claim rewards, update/boosted amount. Iterate all 721 owned by user and remove from list if expiry passed.
     function kick(uint256 tokenId_) external override {
         updateReward(_msgSender());
-        _withdraw(tokenId_);
-        emit PositionKicked(tokenId_);
+        _kick(tokenId_);
     }
 
     /**
@@ -283,24 +291,52 @@ contract ESVSP is Governable, StorageV1 {
         }
     }
 
-    function _withdraw(uint256 tokenId_) internal {
+    /**
+     * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
+     * @param tokenId_ The of the position (NFT)
+     */
+    function _unlock(uint256 tokenId_) internal {
         StakeData memory _stakeData = stakeData[tokenId_];
-        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
-
         address _account = esVSP721.ownerOf(tokenId_);
         uint256 _locked = _stakeData.lockedAmount;
         uint256 _boosted = _stakeData.boostedAmount;
 
         esVSP721.burn(tokenId_);
         delete stakeData[tokenId_];
+
         locked[_account] -= _locked;
         totalLocked -= _locked;
         boosted[_account] -= _boosted;
         totalBoosted -= _boosted;
 
-        VSP.safeTransfer(_account, _locked);
+        uint256 _toTransfer = _locked;
 
-        emit VspWithdrawn(tokenId_, _account, _locked);
+        if (block.timestamp <= _stakeData.unlockTime) {
+            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
+            uint256 _progress = ((_stakeData.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
+            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
+            _toTransfer -= _penalty;
+        }
+
+        VSP.safeTransfer(_account, _toTransfer);
+    }
+
+    function _withdraw(uint256 tokenId_) internal {
+        address _account = esVSP721.ownerOf(tokenId_);
+        require(_msgSender() == _account, "not-position-owner");
+
+        _unlock(tokenId_);
+
+        emit VspWithdrawn(tokenId_);
+    }
+
+    function _kick(uint256 tokenId_) internal {
+        StakeData memory _stakeData = stakeData[tokenId_];
+        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
+
+        _unlock(tokenId_);
+
+        emit PositionKicked(tokenId_);
     }
 
     function _claimable(
