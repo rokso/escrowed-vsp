@@ -3,6 +3,7 @@
 pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./access/Governable.sol";
 import "./StorageV1.sol";
 
@@ -11,6 +12,8 @@ import "./StorageV1.sol";
  */
 contract ESVSP is Governable, StorageV1 {
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
+
     string public constant VERSION = "1.0.0";
     IERC20 public constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
     uint256 public constant MINIMUM_LOCK_PERIOD = 7 days;
@@ -75,7 +78,7 @@ contract ESVSP is Governable, StorageV1 {
             }
             _updateReward(_rewardToken, account_, totalSupply_, userBalance_);
             // Claim rewards
-            uint256 _reward = rewards[_rewardToken][account_];
+            uint256 _reward = userRewardData[_rewardToken][account_].claimableRewardsStored;
             _claimReward(_rewardToken, account_, _reward);
             emit RewardPaid(account_, _rewardToken, _reward);
         }
@@ -127,7 +130,7 @@ contract ESVSP is Governable, StorageV1 {
     function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
-        // TODO: Check this line, seems that won't never reaches false because of the 1st require
+        // TODO: We can remove this check we won't have remove reward token feature
         require(rewardData[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         _notifyRewardAmount(rewardToken_, rewardAmount_);
     }
@@ -233,9 +236,6 @@ contract ESVSP is Governable, StorageV1 {
         uint256 _locked = _stakeData.lockedAmount;
         uint256 _boosted = _stakeData.boostedAmount;
 
-        // TODO: Should these mappings live in NFT contract?
-        // Pros: Since they represents lock positions same as NFT, it would increase code cohesion
-        // Cons: Because they are mostly readed here, the external calls will increase gas cost
         locked[_from] -= _locked;
         boosted[_from] -= _boosted;
         locked[to_] += _locked;
@@ -249,7 +249,6 @@ contract ESVSP is Governable, StorageV1 {
      * @return users boost VSP balance. Boost VSP > locked VSP
      */
     function balanceOf(address account_) public view override returns (uint256) {
-        // TODO: We can rename `boosted` to `balanceOf` and get rid of this function
         return boosted[account_];
     }
 
@@ -265,7 +264,6 @@ contract ESVSP is Governable, StorageV1 {
      * @return users locked VSP balance
      */
     function lockedBalanceOf(address account_) public view virtual override returns (uint256) {
-        // TODO: We can rename `locked` to `lockedBalanceOf` and get rid of this function
         return locked[account_];
     }
 
@@ -273,7 +271,6 @@ contract ESVSP is Governable, StorageV1 {
      * @notice Total boosted amount.
      */
     function totalSupply() public view virtual override returns (uint256) {
-        // TODO: We can rename `totalBoosted` to `totalSupply` and get rid of this function
         return totalBoosted;
     }
 
@@ -282,9 +279,8 @@ contract ESVSP is Governable, StorageV1 {
         address account_,
         uint256 reward_
     ) internal virtual {
-        // Mark reward as claimed
-        rewards[rewardToken_][account_] = 0;
-        // Transfer reward
+        UserReward storage _userReward = userRewardData[rewardToken_][account_];
+        _userReward.claimableRewardsStored = 0;
         IERC20(rewardToken_).safeTransfer(account_, reward_);
     }
 
@@ -319,8 +315,9 @@ contract ESVSP is Governable, StorageV1 {
         rewardData_.rewardPerTokenStored = _rewardPerTokenStored;
         rewardData_.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
         if (account_ != address(0)) {
-            rewards[rewardToken_][account_] = _claimable(rewardToken_, account_, totalSupply_, balance_);
-            userRewardPerTokenPaid[rewardToken_][account_] = _rewardPerTokenStored;
+            UserReward storage _userReward = userRewardData[rewardToken_][account_];
+            _userReward.claimableRewardsStored = _claimable(rewardToken_, account_, totalSupply_, balance_).toUint128();
+            _userReward.rewardPerTokenPaid = _rewardPerTokenStored.toUint128();
         }
     }
 
@@ -378,10 +375,10 @@ contract ESVSP is Governable, StorageV1 {
         uint256 totalSupply_,
         uint256 balance_
     ) internal view returns (uint256) {
-        uint256 _rewardPerTokenAvailable = _rewardPerToken(rewardToken_, totalSupply_) -
-            userRewardPerTokenPaid[rewardToken_][account_];
+        UserReward memory _userReward = userRewardData[rewardToken_][account_];
+        uint256 _rewardPerTokenAvailable = _rewardPerToken(rewardToken_, totalSupply_) - _userReward.rewardPerTokenPaid;
         uint256 _rewardsEarnedSinceLastUpdate = (balance_ * _rewardPerTokenAvailable) / 1e18;
-        return rewards[rewardToken_][account_] + _rewardsEarnedSinceLastUpdate;
+        return _userReward.claimableRewardsStored + _rewardsEarnedSinceLastUpdate;
     }
 
     function _lock(
@@ -417,7 +414,6 @@ contract ESVSP is Governable, StorageV1 {
     /// @notice Returns the reward per VSP locked based on time elapsed since last notification multiplied by reward rate
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
         if (totalSupply_ == 0) {
-            // TODO: What will happen with the amount deposited when `totalSupply_` is 0?
             return rewardData[rewardToken_].rewardPerTokenStored;
         }
 

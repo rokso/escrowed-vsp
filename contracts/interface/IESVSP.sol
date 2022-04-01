@@ -23,8 +23,6 @@ interface IESVSP is IERC20, IERC20Metadata {
     // Emitted when the exit penalty is updated
     event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
 
-    // TODO: add more events
-
     function addRewardToken(
         address rewardsToken_,
         address distributor_,
