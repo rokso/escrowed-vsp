@@ -79,7 +79,7 @@ contract ESVSP is Governable, StorageV1 {
             _claimReward(_rewardToken, account_, _reward);
             emit RewardPaid(account_, _rewardToken, _reward);
         }
-        // _kickAllExpiredOf(account_);
+        _kickAllExpiredOf(account_);
     }
 
     function claimableRewards(address account_)
@@ -143,7 +143,10 @@ contract ESVSP is Governable, StorageV1 {
         emit RewardDistributorApprovalUpdated(rewardsToken_, distributor_, approved_);
     }
 
-    // Modify approval for an address to call notifyRewardAmount
+    /**
+     * @notice Update exit penalty
+     * @param exitPenalty_ The new exit penalty
+     */
     function updateExitPenalty(uint256 exitPenalty_) external onlyGovernor {
         require(exitPenalty_ <= 1e18, "exit-fee-gt-100%");
         require(exitPenalty_ != exitPenalty, "fee-is-same-as-current");
@@ -182,9 +185,18 @@ contract ESVSP is Governable, StorageV1 {
 
     function _kickAllExpiredOf(address account_) internal {
         uint256 _len = esVSP721.balanceOf(account_);
+        uint256[] memory _toKick = new uint256[](_len);
+
         for (uint256 i = 0; i < _len; ++i) {
             uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
             if (block.timestamp > stakeData[_tokenId].unlockTime) {
+                _toKick[i] = _tokenId;
+            }
+        }
+
+        for (uint256 i = 0; i < _len; ++i) {
+            uint256 _tokenId = _toKick[i];
+            if (_tokenId > 0) {
                 _kick(_tokenId);
             }
         }

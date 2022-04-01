@@ -11,7 +11,7 @@ import "./interface/IESVSP721.sol";
 contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     string public baseTokenURI;
     address public esVSP;
-    uint256 public tokenId; // tokens counter
+    uint256 public nextTokenId = 1;
 
     constructor(
         address esVSP_,
@@ -30,12 +30,10 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
         baseTokenURI = baseTokenURI_;
     }
 
-    function mint(address to_) external returns (uint256) {
+    function mint(address to_) external returns (uint256 _tokenId) {
         require(msg.sender == esVSP, "not-esvsp");
-        tokenId++;
-        uint256 _tokenId = tokenId;
+        _tokenId = nextTokenId++;
         _mint(to_, _tokenId);
-        return _tokenId;
     }
 
     function tokenURI(uint256 _tokenId) public view override returns (string memory) {
@@ -47,6 +45,8 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
         address to_,
         uint256 tokenId_
     ) internal override {
+        super._beforeTokenTransfer(from_, to_, tokenId_);
+
         if (from_ != address(0) && to_ != address(0)) {
             IESVSP(esVSP).transferPosition(tokenId_, to_);
         }

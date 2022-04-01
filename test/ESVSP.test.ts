@@ -1073,4 +1073,29 @@ describe('ESVSP', function () {
       expect(await esVsp.lockedBalanceOf(alice.address)).eq(locked)
     })
   })
+
+  describe('kickAllExpiredOf', function () {
+    beforeEach(async function () {
+      const amount = parseEther('100')
+      await esVsp.lock(amount, YEAR)
+      await esVsp.lock(amount, YEAR.mul(2))
+      await esVsp.lock(amount, YEAR)
+      await esVsp.lock(amount, YEAR.mul(2))
+      await esVsp.lock(amount, YEAR)
+
+      await increaseTime(YEAR.add(1))
+    })
+
+    it('should kick expired positions', async function () {
+      // given
+      const balanceBefore = await esVsp721.balanceOf(alice.address)
+
+      // when
+      await esVsp.connect(bob).kickAllExpiredOf(alice.address)
+
+      // VSP balance
+      const balanceAfter = await esVsp721.balanceOf(alice.address)
+      expect(balanceAfter).eq(balanceBefore.sub(3))
+    })
+  })
 })
