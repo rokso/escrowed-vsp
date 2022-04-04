@@ -6,11 +6,6 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./access/Governable.sol";
 import "./StorageV1.sol";
 
-// TODO: if user lock for some duration and do not withdraw from contract after expiry, it continue earn rewards on boosted amount.
-// Need solution for this.
-// Public should be able to call kick(user), kick(tokeId) method to remove expired lot from rewards. This remove boosted amount if locked time passed.
-// When user interact with contract/claim rewards, update/boosted amount. Iterate all 721 owned by user and remove from list if expiry passed.
-
 /**
  * @title Non-transferable escrowed VSP.
  */
@@ -34,6 +29,7 @@ contract ESVSP is Governable, StorageV1 {
         symbol = symbol_;
         decimals = decimals_;
         esVSP721 = esVSP721_;
+        exitPenalty = 0.5e18; // 50%;
     }
 
     /**
@@ -83,6 +79,7 @@ contract ESVSP is Governable, StorageV1 {
             _claimReward(_rewardToken, account_, _reward);
             emit RewardPaid(account_, _rewardToken, _reward);
         }
+        _kickAllExpiredOf(account_);
     }
 
     function claimableRewards(address account_)
@@ -117,6 +114,7 @@ contract ESVSP is Governable, StorageV1 {
      */
     function lock(uint256 amount_, uint256 lockPeriod_) external override {
         updateReward(_msgSender());
+        _kickAllExpiredOf(_msgSender());
         _lock(amount_, lockPeriod_, _msgSender());
     }
 
@@ -146,6 +144,17 @@ contract ESVSP is Governable, StorageV1 {
     }
 
     /**
+     * @notice Update exit penalty
+     * @param exitPenalty_ The new exit penalty
+     */
+    function updateExitPenalty(uint256 exitPenalty_) external onlyGovernor {
+        require(exitPenalty_ <= 1e18, "exit-fee-gt-100%");
+        require(exitPenalty_ != exitPenalty, "fee-is-same-as-current");
+        emit ExitPenaltyUpdated(exitPenalty, exitPenalty_);
+        exitPenalty = exitPenalty_;
+    }
+
+    /**
      * @notice Withdraw VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
@@ -153,6 +162,44 @@ contract ESVSP is Governable, StorageV1 {
     function withdraw(uint256 tokenId_) external override {
         updateReward(_msgSender());
         _withdraw(tokenId_);
+        _kickAllExpiredOf(_msgSender());
+    }
+
+    /**
+     * @notice Anyone can call withdraw for a given expired position
+     * @param tokenId_ ERC721 tokenId
+     */
+    function kick(uint256 tokenId_) external override {
+        updateReward(esVSP721.ownerOf(tokenId_));
+        _kick(tokenId_);
+    }
+
+    /**
+     * @notice Kick all expired positions from a given account
+     * @param account_ The target account
+     */
+    function kickAllExpiredOf(address account_) external override {
+        updateReward(account_);
+        _kickAllExpiredOf(account_);
+    }
+
+    function _kickAllExpiredOf(address account_) internal {
+        uint256 _len = esVSP721.balanceOf(account_);
+        uint256[] memory _toKick = new uint256[](_len);
+
+        for (uint256 i = 0; i < _len; ++i) {
+            uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
+            if (block.timestamp > stakeData[_tokenId].unlockTime) {
+                _toKick[i] = _tokenId;
+            }
+        }
+
+        for (uint256 i = 0; i < _len; ++i) {
+            uint256 _tokenId = _toKick[i];
+            if (_tokenId > 0) {
+                _kick(_tokenId);
+            }
+        }
     }
 
     /**
@@ -277,24 +324,52 @@ contract ESVSP is Governable, StorageV1 {
         }
     }
 
-    function _withdraw(uint256 tokenId_) internal {
+    /**
+     * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
+     * @param tokenId_ The of the position (NFT)
+     */
+    function _unlock(uint256 tokenId_) internal {
         StakeData memory _stakeData = stakeData[tokenId_];
-        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
-
         address _account = esVSP721.ownerOf(tokenId_);
         uint256 _locked = _stakeData.lockedAmount;
         uint256 _boosted = _stakeData.boostedAmount;
 
         esVSP721.burn(tokenId_);
         delete stakeData[tokenId_];
+
         locked[_account] -= _locked;
         totalLocked -= _locked;
         boosted[_account] -= _boosted;
         totalBoosted -= _boosted;
 
-        VSP.safeTransfer(_account, _locked);
+        uint256 _toTransfer = _locked;
 
-        emit VspWithdrawn(tokenId_, _account, _locked);
+        if (block.timestamp <= _stakeData.unlockTime) {
+            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
+            uint256 _progress = ((_stakeData.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
+            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
+            _toTransfer -= _penalty;
+        }
+
+        VSP.safeTransfer(_account, _toTransfer);
+    }
+
+    function _withdraw(uint256 tokenId_) internal {
+        address _account = esVSP721.ownerOf(tokenId_);
+        require(_msgSender() == _account, "not-position-owner");
+
+        _unlock(tokenId_);
+
+        emit VspWithdrawn(tokenId_);
+    }
+
+    function _kick(uint256 tokenId_) internal {
+        StakeData memory _stakeData = stakeData[tokenId_];
+        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
+
+        _unlock(tokenId_);
+
+        emit PositionKicked(tokenId_);
     }
 
     function _claimable(

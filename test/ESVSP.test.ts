@@ -188,24 +188,45 @@ describe('ESVSP', function () {
     })
 
     it('should revert if caller is not the bond owner', async function () {
+      // given
+      await increaseTime(YEAR.add(1))
+
       // when
       const tokenId = 1
       const tx = esVsp.connect(bob).withdraw(tokenId)
 
       // then
-      await expect(tx).reverted
+      await expect(tx).revertedWith('not-position-owner')
     })
 
-    it('should revert if do not reached unlock time', async function () {
+    it('should pay exit penalty when withdrawing before unlock time', async function () {
+      // given
+      const penalty = await esVsp.exitPenalty()
+      expect(penalty).eq(parseEther('0.5'))
+      await esVsp.connect(bob).lock(amount, period)
+      await esVsp.connect(carl).lock(amount, period)
+
+      const aliceBefore = await vsp.balanceOf(alice.address)
+      const bobBefore = await vsp.balanceOf(bob.address)
+      const carlBefore = await vsp.balanceOf(carl.address)
+
       // when
-      const tokenId = 1
-      const tx = esVsp.withdraw(tokenId)
+      await esVsp.withdraw(1)
+      // just after deposit: full penalty
+      expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('0.001'))
 
-      // then
-      await expect(tx).revertedWith('not-unlocked-yet')
+      await increaseTime(YEAR.div(2))
+      await esVsp.connect(bob).withdraw(2)
+      // 6mo layer: half penalty
+      expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('0.001'))
+
+      await increaseTime(YEAR.div(2))
+      await esVsp.connect(carl).withdraw(3)
+      // 1y later: no penalty
+      expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('0.001'))
     })
 
-    it('should withdraw locked amount', async function () {
+    it('should withdraw all locked amount after lock period', async function () {
       // given
       const balanceBefore = await vsp.balanceOf(alice.address)
 
@@ -216,7 +237,7 @@ describe('ESVSP', function () {
       const tx = esVsp.withdraw(tokenId)
 
       // then
-      await expect(tx).emit(esVsp, 'VspWithdrawn').withArgs(tokenId, alice.address, amount)
+      await expect(tx).emit(esVsp, 'VspWithdrawn').withArgs(tokenId)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(tokenId)
@@ -824,27 +845,6 @@ describe('ESVSP', function () {
         expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
         expect(lastUpdateTimeAfter).closeTo(periodFinish, 5)
       })
-
-      // FIXME
-      it.skip('should not continue receiving rewards after lock period finishes', async function () {
-        // given
-        const tokenId = 1
-        const {unlockTime} = await esVsp.stakeData(tokenId)
-        const now = await timestampFromLatestBlock()
-        await increaseTime(BigNumber.from(now).add(unlockTime))
-        const before = await esVsp.claimableRewards(alice.address)
-        const [claimableBefore] = before._claimableAmounts
-
-        // when
-        await esVsp.connect(distributor).notifyRewardAmount(WETH_ADDRESS, parseEther('30'))
-        await increaseTime(MONTH)
-        await esVsp.updateReward(alice.address)
-
-        // then
-        const after = await esVsp.claimableRewards(alice.address)
-        const [claimableAfter] = after._claimableAmounts
-        expect(claimableAfter).eq(claimableBefore)
-      })
     })
 
     describe('when token is not boosted', function () {
@@ -956,27 +956,6 @@ describe('ESVSP', function () {
         expect(rewardPerTokenAfter).closeTo(expectedRewardPerToken, parseEther('0.0001'))
         expect(lastUpdateTimeAfter).closeTo(periodFinish, 5)
       })
-
-      // FIXME
-      it.skip('should not continue receiving rewards after lock period finishes', async function () {
-        // given
-        const tokenId = 1
-        const {unlockTime} = await esVsp.stakeData(tokenId)
-        const now = await timestampFromLatestBlock()
-        await increaseTime(BigNumber.from(now).add(unlockTime))
-        const before = await esVsp.claimableRewards(alice.address)
-        const [claimableBefore] = before._claimableAmounts
-
-        // when
-        await esVsp.connect(distributor).notifyRewardAmount(WETH_ADDRESS, parseEther('30'))
-        await increaseTime(MONTH)
-        await esVsp.updateReward(alice.address)
-
-        // then
-        const after = await esVsp.claimableRewards(alice.address)
-        const [claimableAfter] = after._claimableAmounts
-        expect(claimableAfter).eq(claimableBefore)
-      })
     })
   })
 
@@ -1033,6 +1012,90 @@ describe('ESVSP', function () {
         await expect(tx).changeTokenBalance(usdc, alice, claimable)
         expect(await esVsp.rewards(USDC_ADDRESS, alice.address)).eq(0)
       })
+    })
+  })
+
+  describe('kick', function () {
+    const amount = parseEther('100')
+    const period = YEAR
+
+    beforeEach(async function () {
+      await esVsp.lock(amount, period)
+    })
+
+    it('should revert if do not reached unlock time', async function () {
+      // when
+      const tokenId = 1
+      const tx = esVsp.kick(tokenId)
+
+      // then
+      await expect(tx).revertedWith('not-unlocked-yet')
+    })
+
+    it('should withdraw locked amount', async function () {
+      // given
+      const balanceBefore = await vsp.balanceOf(alice.address)
+
+      // when
+      await increaseTime(YEAR.add(1))
+
+      const tokenId = 1
+      const tx = esVsp.connect(bob).kick(tokenId)
+
+      // then
+      await expect(tx).emit(esVsp, 'PositionKicked').withArgs(tokenId)
+
+      // data (deleted)
+      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(tokenId)
+      expect(lockedAmount).eq(0)
+      expect(boostedAmount).eq(0)
+      expect(unlockTime).eq(0)
+
+      const locked = await esVsp.locked(alice.address)
+      const totalLocked = await esVsp.totalLocked()
+      expect(locked).eq(totalLocked).eq(0)
+
+      const boosted = await esVsp.boosted(alice.address)
+      const totalBoosted = await esVsp.totalBoosted()
+      expect(boosted).eq(totalBoosted).eq(0)
+
+      // VSP balance
+      const balanceAfter = await vsp.balanceOf(alice.address)
+      expect(balanceAfter.sub(balanceBefore)).eq(amount)
+
+      // nft
+      await expect(esVsp721.ownerOf(tokenId)).reverted
+      expect(await esVsp721.balanceOf(alice.address)).eq(0)
+
+      // erc20
+      expect(await esVsp.totalSupply()).eq(totalBoosted)
+      expect(await esVsp.balanceOf(alice.address)).eq(boosted)
+      expect(await esVsp.lockedBalanceOf(alice.address)).eq(locked)
+    })
+  })
+
+  describe('kickAllExpiredOf', function () {
+    beforeEach(async function () {
+      const amount = parseEther('100')
+      await esVsp.lock(amount, YEAR)
+      await esVsp.lock(amount, YEAR.mul(2))
+      await esVsp.lock(amount, YEAR)
+      await esVsp.lock(amount, YEAR.mul(2))
+      await esVsp.lock(amount, YEAR)
+
+      await increaseTime(YEAR.add(1))
+    })
+
+    it('should kick expired positions', async function () {
+      // given
+      const balanceBefore = await esVsp721.balanceOf(alice.address)
+
+      // when
+      await esVsp.connect(bob).kickAllExpiredOf(alice.address)
+
+      // VSP balance
+      const balanceAfter = await esVsp721.balanceOf(alice.address)
+      expect(balanceAfter).eq(balanceBefore.sub(3))
     })
   })
 })

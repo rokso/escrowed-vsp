@@ -46,16 +46,16 @@ describe('ESVSP721', function () {
 
     it('should mint', async function () {
       // given
-      expect(await esVsp721.tokenId()).eq(0)
+      const expectedTokenId = 1
+      expect(await esVsp721.nextTokenId()).eq(expectedTokenId)
       expect(await esVsp721.balanceOf(alice.address)).eq(0)
 
       // when
       await esVsp721.mint(alice.address)
 
       // then
-      const tokenId = 1
-      expect(await esVsp721.tokenId()).eq(tokenId)
-      expect(await esVsp721.ownerOf(tokenId)).eq(alice.address)
+      expect(await esVsp721.nextTokenId()).eq(expectedTokenId + 1)
+      expect(await esVsp721.ownerOf(expectedTokenId)).eq(alice.address)
       expect(await esVsp721.balanceOf(alice.address)).eq(1)
     })
   })
@@ -77,11 +77,14 @@ describe('ESVSP721', function () {
       })
 
       it('should burn', async function () {
+        // given
+        const nextBefore = await esVsp721.nextTokenId()
+
         // when
         await esVsp721.burn(tokenId)
 
         // then
-        expect(await esVsp721.tokenId()).eq(tokenId) // keeps counter state
+        expect(await esVsp721.nextTokenId()).eq(nextBefore)
         expect(await esVsp721.balanceOf(alice.address)).eq(0)
       })
     })
