@@ -2,15 +2,16 @@
 
 pragma solidity 0.8.9;
 
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./access/Governable.sol";
-import "./StorageV1.sol";
+import "./storage/ESVSPStorage.sol";
 
 /**
  * @title Non-transferable escrowed VSP.
  */
-contract ESVSP is Governable, StorageV1 {
+contract ESVSP is Governable, ESVSPStorageV1 {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -19,7 +20,6 @@ contract ESVSP is Governable, StorageV1 {
     uint256 public constant MINIMUM_LOCK_PERIOD = 7 days;
     uint256 public constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
     uint256 public constant MAXIMUM_BOOST = 4;
-    uint256 public constant REWARD_DURATION = 30 days;
 
     function initialize(
         string memory name_,
@@ -36,125 +36,82 @@ contract ESVSP is Governable, StorageV1 {
     }
 
     /**
-     * @notice add new reward token for distribution
-     * @param rewardsToken_ Reward token address
-     * @param distributor_  Authorized called to call notifyRewardAmount
-     * @param isBoosted_ If reward token is boosted than rewards is distributed on boost amount depends on lock period
+     * @notice Get boosted VSP balance of user. This is different than ESVSP721.balanceOf()
+     * It is sum of boosted amount of VSP in each ERC721 (i.e. ESVSP721) token of user
+     * @param account_ The account
+     * @return user's boost VSP balance. Boost VSP > locked VSP
      */
-    function addRewardToken(
-        address rewardsToken_,
-        address distributor_,
-        bool isBoosted_
-    ) external onlyGovernor {
-        require(rewardData[rewardsToken_].lastUpdateTime == 0, "reward-already-added");
-        rewardData[rewardsToken_] = Reward({
-            isBoosted: isBoosted_,
-            periodFinish: block.timestamp,
-            rewardRates: 0,
-            rewardPerTokenStored: 0,
-            lastUpdateTime: block.timestamp
-        });
-        emit RewardTokenAdded(rewardsToken_, rewardTokens);
-        rewardTokens.push(rewardsToken_);
-        isRewardDistributor[rewardsToken_][distributor_] = true;
+    function balanceOf(address account_) public view override returns (uint256) {
+        return boosted[account_];
     }
 
     /**
-     * @notice Claim earned rewards.
-     * @dev This function will claim rewards for all tokens being rewarded
+     * @notice Burn an expired position and send locked amount to the owner
+     * @param tokenId_ ERC721 tokenId
      */
-    function claimRewards(address account_) external override {
-        uint256 _len = rewardTokens.length;
-        uint256 totalSupply_;
-        uint256 userBalance_;
-        for (uint256 i = 0; i < _len; i++) {
-            address _rewardToken = rewardTokens[i];
-            if (rewardData[_rewardToken].isBoosted) {
-                totalSupply_ = totalBoosted;
-                userBalance_ = boosted[account_];
-            } else {
-                totalSupply_ = totalLocked;
-                userBalance_ = locked[account_];
-            }
-            _updateReward(_rewardToken, account_, totalSupply_, userBalance_);
-            // Claim rewards
-            uint256 _reward = userRewardData[_rewardToken][account_].claimableRewardsStored;
-            _claimReward(_rewardToken, account_, _reward);
-            emit RewardPaid(account_, _rewardToken, _reward);
-        }
-        _kickAllExpiredOf(account_);
+    function kick(uint256 tokenId_) external override {
+        _updateReward(esVSP721.ownerOf(tokenId_));
+        _kick(tokenId_);
     }
 
-    function claimableRewards(address account_)
-        external
-        view
-        returns (address[] memory _rewardTokens, uint256[] memory _claimableAmounts)
-    {
-        uint256 _len = rewardTokens.length;
-
-        _rewardTokens = new address[](_len);
-        _claimableAmounts = new uint256[](_len);
-
-        uint256 _totalSupply;
-        uint256 _userBalance;
-        for (uint256 i = 0; i < _len; i++) {
-            if (rewardData[rewardTokens[i]].isBoosted) {
-                _totalSupply = totalBoosted;
-                _userBalance = boosted[account_];
-            } else {
-                _totalSupply = totalLocked;
-                _userBalance = locked[account_];
-            }
-            _rewardTokens[i] = rewardTokens[i];
-            _claimableAmounts[i] = _claimable(rewardTokens[i], account_, _totalSupply, _userBalance);
-        }
+    /**
+     * @notice Kick all expired positions from a given account
+     * @param account_ The target account
+     */
+    function kickAllExpiredOf(address account_) external override {
+        _updateReward(account_);
+        _kickAllExpiredOf(account_);
     }
 
     /**
      * @notice Lock VSP to get boosted revenue and voting power. Lock VSP and generate users position by minting ERC721
-     * @param amount_ .
-     * @param lockPeriod_  Lock VSP
+     * @param amount_ The VSP amount to lock
+     * @param lockPeriod_ The lock period
      */
     function lock(uint256 amount_, uint256 lockPeriod_) external override {
-        updateReward(_msgSender());
+        _updateReward(_msgSender());
         _kickAllExpiredOf(_msgSender());
-        _lock(amount_, lockPeriod_, _msgSender());
+        _lock(amount_, lockPeriod_);
     }
 
     /**
-     * @notice Restricted method: Drip reward token and extend current reward duration by 30 days.
-     * User get drip based on their boosted VSP amount
-     * @param rewardToken_ Reward token address
-     * @param rewardAmount_  Reward amount
+     * @notice Get total locked VSP balance of user
+     * It is sum of locked VSP in each ERC721 (i.e. ESVSP721) token of user
+     * @param account_ The account
+     * @return user's locked VSP balance
      */
-    function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
-        require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
-        require(rewardAmount_ > 0, "incorrect-reward-amount");
-        // TODO: We can remove this check we won't have remove reward token feature
-        require(rewardData[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
-        _notifyRewardAmount(rewardToken_, rewardAmount_);
-    }
-
-    // Modify approval for an address to call notifyRewardAmount
-    function setRewardDistributorApproval(
-        address rewardsToken_,
-        address distributor_,
-        bool approved_
-    ) external onlyGovernor {
-        require(rewardData[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
-        isRewardDistributor[rewardsToken_][distributor_] = approved_;
-        emit RewardDistributorApprovalUpdated(rewardsToken_, distributor_, approved_);
+    function lockedBalanceOf(address account_) public view virtual override returns (uint256) {
+        return locked[account_];
     }
 
     /**
-     * @notice Update exit penalty
-     * @param exitPenalty_ The new exit penalty
+     * @notice Total boosted amount
      */
-    function updateExitPenalty(uint256 exitPenalty_) external onlyGovernor {
-        require(exitPenalty_ <= 1e18, "exit-fee-gt-100%");
-        require(exitPenalty_ != exitPenalty, "fee-is-same-as-current");
-        emit ExitPenaltyUpdated(exitPenalty, exitPenalty_);
-        exitPenalty = exitPenalty_;
+    function totalSupply() public view virtual override returns (uint256) {
+        return totalBoosted;
+    }
+
+    /**
+     * @notice Transfer position (i.e. locked and boosted amounts) between accounts
+     * @dev Revert if caller isn't the esVSP721 contract
+     * @param tokenId_ The position (NFT) to transfer
+     * @param to_ The recipient
+     */
+    function transferPosition(uint256 tokenId_, address to_) external {
+        require(_msgSender() == address(esVSP721), "not-esvsp721");
+        address _from = esVSP721.ownerOf(tokenId_);
+
+        _updateReward(_from);
+        _updateReward(to_);
+
+        StakeData memory _stakeData = stakeData[tokenId_];
+        uint256 _locked = _stakeData.lockedAmount;
+        uint256 _boosted = _stakeData.boostedAmount;
+
+        locked[_from] -= _locked;
+        boosted[_from] -= _boosted;
+        locked[to_] += _locked;
+        boosted[to_] += _boosted;
     }
 
     /**
@@ -164,29 +121,15 @@ contract ESVSP is Governable, StorageV1 {
      */
     // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake naming instead?
     function withdraw(uint256 tokenId_, bool beforeUnlockTime_) external override {
-        updateReward(_msgSender());
+        _updateReward(_msgSender());
         _withdraw(tokenId_, !beforeUnlockTime_);
         _kickAllExpiredOf(_msgSender());
     }
 
     /**
-     * @notice Anyone can call withdraw for a given expired position
-     * @param tokenId_ ERC721 tokenId
-     */
-    function kick(uint256 tokenId_) external override {
-        updateReward(esVSP721.ownerOf(tokenId_));
-        _kick(tokenId_);
-    }
-
-    /**
-     * @notice Kick all expired positions from a given account
+     * @notice Kick all expired positions of a user
      * @param account_ The target account
      */
-    function kickAllExpiredOf(address account_) external override {
-        updateReward(account_);
-        _kickAllExpiredOf(account_);
-    }
-
     function _kickAllExpiredOf(address account_) internal {
         uint256 _len = esVSP721.balanceOf(account_);
         uint256[] memory _toKick = new uint256[](_len);
@@ -207,119 +150,46 @@ contract ESVSP is Governable, StorageV1 {
     }
 
     /**
-     * @notice Update reward earning of user.
-     * @param account_ .
+     * @notice Burn an expired position and send locked amount to the owner
+     * @param tokenId_ ERC721 tokenId
      */
-    function updateReward(address account_) public {
-        uint256 _len = rewardTokens.length;
-        uint256 _totalSupply;
-        uint256 _userBalance;
-        for (uint256 i = 0; i < _len; i++) {
-            if (rewardData[rewardTokens[i]].isBoosted) {
-                _totalSupply = totalBoosted;
-                _userBalance = boosted[account_];
-            } else {
-                _totalSupply = totalLocked;
-                _userBalance = locked[account_];
-            }
-            _updateReward(rewardTokens[i], account_, _totalSupply, _userBalance);
-        }
-    }
+    function _kick(uint256 tokenId_) internal {
+        _unlock(tokenId_, true);
 
-    function transferPosition(uint256 tokenId_, address to_) external {
-        require(_msgSender() == address(esVSP721), "not-esvsp721");
-        address _from = esVSP721.ownerOf(tokenId_);
-
-        updateReward(_from);
-        updateReward(to_);
-
-        StakeData memory _stakeData = stakeData[tokenId_];
-        uint256 _locked = _stakeData.lockedAmount;
-        uint256 _boosted = _stakeData.boostedAmount;
-
-        locked[_from] -= _locked;
-        boosted[_from] -= _boosted;
-        locked[to_] += _locked;
-        boosted[to_] += _boosted;
+        emit PositionKicked(tokenId_);
     }
 
     /**
-     * @notice Get boosted VSP balance of user. This is different than ESVSP721.balanceOf()
-     * It is sum of boosted amount of VSP in each ERC721 ( i.e. ESVSP721) token of user
-     * @param account_ .
-     * @return users boost VSP balance. Boost VSP > locked VSP
+     * @notice Lock VSP to get boosted revenue and voting power. Lock VSP and generate users position by minting ERC721
+     * @param amount_ The VSP amount to lock
+     * @param lockPeriod_ The lock period
      */
-    function balanceOf(address account_) public view override returns (uint256) {
-        return boosted[account_];
-    }
+    function _lock(uint256 amount_, uint256 lockPeriod_) internal {
+        require(amount_ > 0, "amount-is-zero");
+        require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
+        require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
 
-    /// @notice Returns timestamp of last reward update
-    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
-        return Math.min(block.timestamp, rewardData[_rewardToken].periodFinish);
-    }
+        address account_ = _msgSender();
 
-    /**
-     * @notice Get total locked VSP balance of user.
-     * It is sum of locked VSP in each ERC721 ( i.e. ESVSP721) token of user
-     * @param account_ .
-     * @return users locked VSP balance
-     */
-    function lockedBalanceOf(address account_) public view virtual override returns (uint256) {
-        return locked[account_];
-    }
+        uint256 balanceBefore_ = VSP.balanceOf(address(this));
+        VSP.safeTransferFrom(account_, address(this), amount_);
+        uint256 _lockedAmount = VSP.balanceOf(address(this)) - balanceBefore_;
+        require(_lockedAmount > 0, "nothing-to-lock");
 
-    /**
-     * @notice Total boosted amount.
-     */
-    function totalSupply() public view virtual override returns (uint256) {
-        return totalBoosted;
-    }
+        uint256 _boostedAmount = (_lockedAmount * lockPeriod_ * MAXIMUM_BOOST) / MAXIMUM_LOCK_PERIOD;
 
-    function _claimReward(
-        address rewardToken_,
-        address account_,
-        uint256 reward_
-    ) internal virtual {
-        UserReward storage _userReward = userRewardData[rewardToken_][account_];
-        _userReward.claimableRewardsStored = 0;
-        IERC20(rewardToken_).safeTransfer(account_, reward_);
-    }
+        locked[account_] += _lockedAmount;
+        boosted[account_] += _boostedAmount;
+        totalLocked += _lockedAmount;
+        totalBoosted += _boostedAmount;
+        uint256 _tokenId = esVSP721.mint(account_);
+        stakeData[_tokenId] = StakeData({
+            lockedAmount: _lockedAmount,
+            boostedAmount: _boostedAmount,
+            unlockTime: block.timestamp + lockPeriod_
+        });
 
-    function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
-        IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
-        Reward storage _rewardData = rewardData[rewardToken_];
-        uint256 _totalSupply = _rewardData.isBoosted ? totalBoosted : totalLocked;
-        _rewardData.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
-        if (block.timestamp >= _rewardData.periodFinish) {
-            _rewardData.rewardRates = rewardAmount_ / REWARD_DURATION;
-        } else {
-            uint256 _remainingPeriod = _rewardData.periodFinish - block.timestamp;
-            uint256 _leftover = _remainingPeriod * _rewardData.rewardRates;
-            _rewardData.rewardRates = (rewardAmount_ + _leftover) / REWARD_DURATION;
-        }
-
-        // Start new drip time
-        // TODO: Want we to use "drip" or "notify" naming?
-        _rewardData.lastUpdateTime = block.timestamp;
-        _rewardData.periodFinish = block.timestamp + REWARD_DURATION;
-        emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
-    }
-
-    function _updateReward(
-        address rewardToken_,
-        address account_,
-        uint256 totalSupply_,
-        uint256 balance_
-    ) internal {
-        uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
-        Reward storage rewardData_ = rewardData[rewardToken_];
-        rewardData_.rewardPerTokenStored = _rewardPerTokenStored;
-        rewardData_.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
-        if (account_ != address(0)) {
-            UserReward storage _userReward = userRewardData[rewardToken_][account_];
-            _userReward.claimableRewardsStored = _claimable(rewardToken_, account_, totalSupply_, balance_).toUint128();
-            _userReward.rewardPerTokenPaid = _rewardPerTokenStored.toUint128();
-        }
+        emit VspLocked(_tokenId, account_, amount_, lockPeriod_);
     }
 
     /**
@@ -358,6 +228,20 @@ contract ESVSP is Governable, StorageV1 {
         VSP.safeTransfer(_account, _toTransfer);
     }
 
+    /**
+     * @notice Update related rewards
+     * @param account_ The account to update
+     */
+    function _updateReward(address account_) private {
+        if (address(rewards) != address(0)) {
+            rewards.updateReward(account_);
+        }
+    }
+
+    /**
+     * @notice Withdraw VSP by burning given ERC721 tokenId_
+     * @param tokenId_ ERC721 tokenId
+     */
     function _withdraw(uint256 tokenId_, bool onlyIfExpired_) internal {
         address _account = esVSP721.ownerOf(tokenId_);
         require(_msgSender() == _account, "not-position-owner");
@@ -367,67 +251,31 @@ contract ESVSP is Governable, StorageV1 {
         emit VspWithdrawn(tokenId_);
     }
 
-    function _kick(uint256 tokenId_) internal {
-        _unlock(tokenId_, true);
+    /** Governance methods **/
 
-        emit PositionKicked(tokenId_);
+    /**
+     * @notice Set the Rewards contract
+     * @param rewards_ The new contract
+     */
+    function setRewards(IRewards rewards_) external onlyGovernor {
+        require(address(rewards_) != address(0), "address-is-null");
+        require(address(rewards_) != address(rewards), "same-as-current");
+        emit RewardsUpdated(rewards, rewards_);
+        rewards = rewards_;
     }
 
-    function _claimable(
-        address rewardToken_,
-        address account_,
-        uint256 totalSupply_,
-        uint256 balance_
-    ) internal view returns (uint256) {
-        UserReward memory _userReward = userRewardData[rewardToken_][account_];
-        uint256 _rewardPerTokenAvailable = _rewardPerToken(rewardToken_, totalSupply_) - _userReward.rewardPerTokenPaid;
-        uint256 _rewardsEarnedSinceLastUpdate = (balance_ * _rewardPerTokenAvailable) / 1e18;
-        return _userReward.claimableRewardsStored + _rewardsEarnedSinceLastUpdate;
+    /**
+     * @notice Update exit penalty
+     * @param exitPenalty_ The new exit penalty
+     */
+    function updateExitPenalty(uint256 exitPenalty_) external onlyGovernor {
+        require(exitPenalty_ <= 1e18, "exit-fee-gt-100%");
+        require(exitPenalty_ != exitPenalty, "fee-is-same-as-current");
+        emit ExitPenaltyUpdated(exitPenalty, exitPenalty_);
+        exitPenalty = exitPenalty_;
     }
 
-    function _lock(
-        uint256 amount_,
-        uint256 lockPeriod_,
-        address account_
-    ) internal {
-        require(amount_ > 0, "amount-is-zero");
-        require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
-        require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
-
-        uint256 balanceBefore_ = VSP.balanceOf(address(this));
-        VSP.safeTransferFrom(_msgSender(), address(this), amount_);
-        uint256 _lockedAmount = VSP.balanceOf(address(this)) - balanceBefore_;
-        require(_lockedAmount > 0, "nothing-to-lock");
-
-        uint256 _boostedAmount = (_lockedAmount * lockPeriod_ * MAXIMUM_BOOST) / MAXIMUM_LOCK_PERIOD;
-
-        locked[account_] += _lockedAmount;
-        boosted[account_] += _boostedAmount;
-        totalLocked += _lockedAmount;
-        totalBoosted += _boostedAmount;
-        uint256 _tokenId = esVSP721.mint(account_);
-        stakeData[_tokenId] = StakeData({
-            lockedAmount: _lockedAmount,
-            boostedAmount: _boostedAmount,
-            unlockTime: block.timestamp + lockPeriod_
-        });
-
-        emit VspLocked(_tokenId, account_, amount_, lockPeriod_);
-    }
-
-    /// @notice Returns the reward per VSP locked based on time elapsed since last notification multiplied by reward rate
-    function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
-        if (totalSupply_ == 0) {
-            return rewardData[rewardToken_].rewardPerTokenStored;
-        }
-
-        uint256 _timeSinceLastUpdate = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
-        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewardData[rewardToken_].rewardRates;
-        uint256 _rewardsPerTokenSinceLastUpdate = (_rewardsSinceLastUpdate * 1e18) / totalSupply_;
-        return rewardData[rewardToken_].rewardPerTokenStored + _rewardsPerTokenSinceLastUpdate;
-    }
-
-    /** Methods not supported  */
+    /** Methods not supported **/
 
     function allowance(
         address, /*owner*/
