@@ -133,12 +133,12 @@ describe('Rewards', function () {
       // then
       await expect(tx).emit(rewards, 'RewardTokenAdded').withArgs(WETH_ADDRESS, [])
       const now = await timestampFromLatestBlock()
-      const {isBoosted, periodFinish, rewardRates, rewardPerTokenStored, lastUpdateTime} = await rewards.rewards(
+      const {isBoosted, periodFinish, rewardPerSecond, rewardPerTokenStored, lastUpdateTime} = await rewards.rewards(
         rewardsTokenAddress
       )
       expect(isBoosted).true
       expect(periodFinish).eq(now)
-      expect(rewardRates).eq(0)
+      expect(rewardPerSecond).eq(0)
       expect(rewardPerTokenStored).eq(0)
       expect(lastUpdateTime).eq(now)
 
@@ -252,9 +252,9 @@ describe('Rewards', function () {
       const expectedRewardRates = amount.div(duration)
       const expectedRewardPerToken = 0
 
-      const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+      const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
       expect(rewardPerTokenStored).eq(expectedRewardPerToken)
-      expect(rewardRates).eq(expectedRewardRates)
+      expect(rewardPerSecond).eq(expectedRewardRates)
       expect(periodFinish).eq(now + duration.toNumber())
       expect(lastUpdateTime).eq(now)
     })
@@ -285,9 +285,9 @@ describe('Rewards', function () {
         const expectedRewardRates = amount.div(duration)
         const expectedRewardPerToken = 0
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+        const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).eq(expectedRewardPerToken)
-        expect(rewardRates).eq(expectedRewardRates)
+        expect(rewardPerSecond).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
         expect(lastUpdateTime).eq(now)
       })
@@ -318,9 +318,9 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalBoosted())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+        const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
-        expect(rewardRates).eq(expectedRewardRates)
+        expect(rewardPerSecond).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
         expect(lastUpdateTime).eq(now)
       })
@@ -347,9 +347,9 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalBoosted())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+        const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
-        expect(rewardRates).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
+        expect(rewardPerSecond).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
         expect(periodFinish).eq(now + duration.toNumber())
         expect(lastUpdateTime).eq(now)
       })
@@ -381,9 +381,9 @@ describe('Rewards', function () {
         const expectedRewardRates = amount.div(duration)
         const expectedRewardPerToken = 0
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+        const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).eq(expectedRewardPerToken)
-        expect(rewardRates).eq(expectedRewardRates)
+        expect(rewardPerSecond).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
         expect(lastUpdateTime).eq(now)
       })
@@ -414,9 +414,9 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalLocked())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+        const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
-        expect(rewardRates).eq(expectedRewardRates)
+        expect(rewardPerSecond).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
         expect(lastUpdateTime).eq(now)
       })
@@ -443,9 +443,9 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalLocked())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
+        const {rewardPerTokenStored, rewardPerSecond, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
-        expect(rewardRates).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
+        expect(rewardPerSecond).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
         expect(periodFinish).eq(now + duration.toNumber())
         expect(lastUpdateTime).eq(now)
       })

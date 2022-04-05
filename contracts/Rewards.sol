@@ -173,11 +173,11 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 _totalSupply = _reward.isBoosted ? esVSP.totalBoosted() : esVSP.totalLocked();
         _reward.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
         if (block.timestamp >= _reward.periodFinish) {
-            _reward.rewardRates = rewardAmount_ / REWARD_DURATION;
+            _reward.rewardPerSecond = rewardAmount_ / REWARD_DURATION;
         } else {
             uint256 _remainingPeriod = _reward.periodFinish - block.timestamp;
-            uint256 _leftover = _remainingPeriod * _reward.rewardRates;
-            _reward.rewardRates = (rewardAmount_ + _leftover) / REWARD_DURATION;
+            uint256 _leftover = _remainingPeriod * _reward.rewardPerSecond;
+            _reward.rewardPerSecond = (rewardAmount_ + _leftover) / REWARD_DURATION;
         }
 
         // Start new drip time
@@ -198,7 +198,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         }
 
         uint256 _timeSinceLastUpdate = lastTimeRewardApplicable(rewardToken_) - rewards[rewardToken_].lastUpdateTime;
-        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewards[rewardToken_].rewardRates;
+        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewards[rewardToken_].rewardPerSecond;
         uint256 _rewardsPerTokenSinceLastUpdate = (_rewardsSinceLastUpdate * 1e18) / totalSupply_;
         return rewards[rewardToken_].rewardPerTokenStored + _rewardsPerTokenSinceLastUpdate;
     }
@@ -260,7 +260,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         rewards[rewardsToken_] = Reward({
             isBoosted: isBoosted_,
             periodFinish: block.timestamp,
-            rewardRates: 0,
+            rewardPerSecond: 0,
             rewardPerTokenStored: 0,
             lastUpdateTime: block.timestamp
         });
