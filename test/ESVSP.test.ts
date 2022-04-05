@@ -152,7 +152,7 @@ describe('ESVSP', function () {
       await expect(tx).emit(esVsp, 'VspLocked').withArgs(expectedTokenId, alice.address, amount, period)
 
       // data
-      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(expectedTokenId)
+      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(expectedTokenId)
       expect(lockedAmount).eq(amount)
       expect(boostedAmount).eq(expectedBoostAmount)
       expect(unlockTime).closeTo(expectedUnlockTime, 5)
@@ -254,7 +254,7 @@ describe('ESVSP', function () {
       await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId)
 
       // data (deleted)
-      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(tokenId)
+      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
       expect(lockedAmount).eq(0)
       expect(boostedAmount).eq(0)
       expect(unlockTime).eq(0)
@@ -312,10 +312,10 @@ describe('ESVSP', function () {
 
     it('should transfer position (ERC20-only)', async function () {
       const totalSupplyBefore = await esVsp.totalSupply()
-      const stakeDataBefore = await esVsp.stakeData(tokenId)
+      const positionBefore = await esVsp.positions(tokenId)
       expect(await esVsp.lockedBalanceOf(alice.address)).eq(amount)
       expect(await esVsp.lockedBalanceOf(bob.address)).eq(0)
-      const {boostedAmount: boosted} = stakeDataBefore
+      const {boostedAmount: boosted} = positionBefore
 
       // when
       const tx = () => esVsp.connect(esVsp721Wallet).transferPosition(tokenId, bob.address)
@@ -324,8 +324,8 @@ describe('ESVSP', function () {
       await expect(tx).changeTokenBalances(esVsp, [alice, bob], [boosted.mul(-1), boosted])
       const totalSupplyAfter = await esVsp.totalSupply()
       expect(totalSupplyAfter).eq(totalSupplyBefore)
-      const stakeDataAfter = await esVsp.stakeData(tokenId)
-      expect(stakeDataAfter).deep.eq(stakeDataBefore)
+      const positionAfter = await esVsp.positions(tokenId)
+      expect(positionAfter).deep.eq(positionBefore)
       expect(await esVsp.lockedBalanceOf(alice.address)).eq(0)
       expect(await esVsp.lockedBalanceOf(bob.address)).eq(amount)
     })
@@ -362,7 +362,7 @@ describe('ESVSP', function () {
       await expect(tx).emit(esVsp, 'PositionKicked').withArgs(tokenId)
 
       // data (deleted)
-      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.stakeData(tokenId)
+      const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
       expect(lockedAmount).eq(0)
       expect(boostedAmount).eq(0)
       expect(unlockTime).eq(0)

@@ -104,9 +104,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         _updateReward(_from);
         _updateReward(to_);
 
-        StakeData memory _stakeData = stakeData[tokenId_];
-        uint256 _locked = _stakeData.lockedAmount;
-        uint256 _boosted = _stakeData.boostedAmount;
+        LockPosition memory _position = positions[tokenId_];
+        uint256 _locked = _position.lockedAmount;
+        uint256 _boosted = _position.boostedAmount;
 
         locked[_from] -= _locked;
         boosted[_from] -= _boosted;
@@ -135,7 +135,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
         for (uint256 i = 0; i < _len; ++i) {
             uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
-            if (block.timestamp > stakeData[_tokenId].unlockTime) {
+            if (block.timestamp > positions[_tokenId].unlockTime) {
                 _toKick[i] = _tokenId;
             }
         }
@@ -182,7 +182,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
         uint256 _tokenId = esVSP721.mint(account_);
-        stakeData[_tokenId] = StakeData({
+        positions[_tokenId] = LockPosition({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
             unlockTime: block.timestamp + lockPeriod_
@@ -197,18 +197,18 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
      */
     function _burn(uint256 tokenId_, bool onlyIfExpired_) internal {
-        StakeData memory _stakeData = stakeData[tokenId_];
+        LockPosition memory _position = positions[tokenId_];
 
         if (onlyIfExpired_) {
-            require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
+            require(block.timestamp > _position.unlockTime, "not-unlocked-yet");
         }
 
-        uint256 _locked = _stakeData.lockedAmount;
-        uint256 _boosted = _stakeData.boostedAmount;
+        uint256 _locked = _position.lockedAmount;
+        uint256 _boosted = _position.boostedAmount;
         address _account = esVSP721.ownerOf(tokenId_);
 
         esVSP721.burn(tokenId_);
-        delete stakeData[tokenId_];
+        delete positions[tokenId_];
 
         locked[_account] -= _locked;
         totalLocked -= _locked;
@@ -217,9 +217,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
         uint256 _toTransfer = _locked;
 
-        if (block.timestamp <= _stakeData.unlockTime) {
+        if (block.timestamp <= _position.unlockTime) {
             uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
-            uint256 _progress = ((_stakeData.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
+            uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
             uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
             _toTransfer -= _penalty;
         }
