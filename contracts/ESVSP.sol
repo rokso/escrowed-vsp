@@ -130,16 +130,20 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ The id of the position (NFT)
      * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
      */
-    function _burn(uint256 tokenId_, bool onlyIfExpired_) internal {
+    function _burn(
+        uint256 tokenId_,
+        bool onlyIfExpired_,
+        address _account
+    ) internal {
         LockPosition memory _position = positions[tokenId_];
+        uint256 _unlockTime = _position.unlockTime;
 
         if (onlyIfExpired_) {
-            require(block.timestamp > _position.unlockTime, "not-unlocked-yet");
+            require(block.timestamp > _unlockTime, "not-unlocked-yet");
         }
 
         uint256 _locked = _position.lockedAmount;
         uint256 _boosted = _position.boostedAmount;
-        address _account = esVSP721.ownerOf(tokenId_);
 
         esVSP721.burn(tokenId_);
         delete positions[tokenId_];
@@ -151,9 +155,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
         uint256 _toTransfer = _locked;
 
-        if (block.timestamp <= _position.unlockTime) {
+        if (block.timestamp <= _unlockTime) {
             uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
-            uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
+            uint256 _progress = ((_unlockTime - block.timestamp) * 1e18) / _lockPeriod;
             uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
             _toTransfer -= _penalty;
         }
@@ -189,7 +193,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      */
     function _kick(uint256 tokenId_) internal {
-        _burn(tokenId_, true);
+        address _account = esVSP721.ownerOf(tokenId_);
+
+        _burn(tokenId_, true, _account);
 
         emit PositionKicked(tokenId_);
     }
@@ -217,7 +223,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         boosted[account_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
+
         uint256 _tokenId = esVSP721.mint(account_);
+
         positions[_tokenId] = LockPosition({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
@@ -235,7 +243,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         address _account = esVSP721.ownerOf(tokenId_);
         require(_msgSender() == _account, "not-position-owner");
 
-        _burn(tokenId_, onlyIfExpired_);
+        _burn(tokenId_, onlyIfExpired_, _account);
 
         emit VspUnlocked(tokenId_);
     }
