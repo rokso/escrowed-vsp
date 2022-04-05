@@ -193,7 +193,18 @@ describe('Rewards', function () {
       await weth.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
     })
 
+    it('should revert if token is invalid', async function () {
+      // when
+      const tx = rewards.connect(distributor).dripRewardAmount(WETH_ADDRESS, parseEther('0.1'))
+
+      // then
+      await expect(tx).revertedWith('reward-token-not-added')
+    })
+
     it('should revert if not distributor', async function () {
+      // given
+      await rewards.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
+
       // when
       const tx = rewards.connect(alice).dripRewardAmount(WETH_ADDRESS, parseEther('0.1'))
 

@@ -90,10 +90,9 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardAmount_  Reward amount
      */
     function dripRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
+        require(rewards[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
-        // TODO: We can remove this check we won't have remove reward token feature
-        require(rewards[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         _dripRewardAmount(rewardToken_, rewardAmount_);
     }
 
