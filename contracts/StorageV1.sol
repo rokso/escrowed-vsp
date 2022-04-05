@@ -22,6 +22,11 @@ abstract contract StorageV1 is IESVSP {
         uint256 rewardPerTokenStored;
     }
 
+    struct UserReward {
+        uint128 rewardPerTokenPaid;
+        uint128 claimableRewardsStored;
+    }
+
     uint8 public decimals;
     string public name;
     string public symbol;
@@ -30,12 +35,8 @@ abstract contract StorageV1 is IESVSP {
     uint256 public totalLocked; // VSP staked accumulator
     uint256 public totalBoosted; // boostedAmount accumulator
 
-    // TODO: See if worth replace these with Enumerable
     /// Array of reward tokens
     address[] public rewardTokens;
-    // TODO: We need this mapping?
-    /// Reward token to valid/invalid flag mapping
-    // mapping(address => bool) public isRewardToken;
 
     /**
      * @notice Fee paid when withdrawing. Decreases linearly as period finish approaches.
@@ -57,13 +58,8 @@ abstract contract StorageV1 is IESVSP {
     // user => total boosted;
     mapping(address => uint256) public boosted;
 
-    // TODO: If they are read together worth creating a 2 x uint128 struct
-    /// RewardToken => User => Reward per token stored at last reward update
-    mapping(address => mapping(address => uint256)) public userRewardPerTokenPaid;
-    /// RewardToken => User => Rewards earned till last reward update
-    mapping(address => mapping(address => uint256)) public rewards;
+    mapping(address => mapping(address => UserReward)) public userRewardData;
 
     // RewardToken -> distributor -> is approved to add rewards
     mapping(address => mapping(address => bool)) public isRewardDistributor;
-    // TODO: add supporting methods to add new reward token
 }
