@@ -115,14 +115,13 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     }
 
     /**
-     * @notice Withdraw VSP by burning given ERC721 tokenId_
+     * @notice Unlock VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      * @param beforeUnlockTime_ When `true` unlock before expiration and pays exit penalty
      */
-    // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake naming instead?
-    function withdraw(uint256 tokenId_, bool beforeUnlockTime_) external override {
+    function unlock(uint256 tokenId_, bool beforeUnlockTime_) external override {
         _updateReward(_msgSender());
-        _withdraw(tokenId_, !beforeUnlockTime_);
+        _unlock(tokenId_, !beforeUnlockTime_);
         _kickAllExpiredOf(_msgSender());
     }
 
@@ -154,7 +153,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      */
     function _kick(uint256 tokenId_) internal {
-        _unlock(tokenId_, true);
+        _burn(tokenId_, true);
 
         emit PositionKicked(tokenId_);
     }
@@ -197,7 +196,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ The id of the position (NFT)
      * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
      */
-    function _unlock(uint256 tokenId_, bool onlyIfExpired_) internal {
+    function _burn(uint256 tokenId_, bool onlyIfExpired_) internal {
         StakeData memory _stakeData = stakeData[tokenId_];
 
         if (onlyIfExpired_) {
@@ -239,16 +238,16 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     }
 
     /**
-     * @notice Withdraw VSP by burning given ERC721 tokenId_
+     * @notice Unlock VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
-    function _withdraw(uint256 tokenId_, bool onlyIfExpired_) internal {
+    function _unlock(uint256 tokenId_, bool onlyIfExpired_) internal {
         address _account = esVSP721.ownerOf(tokenId_);
         require(_msgSender() == _account, "not-position-owner");
 
-        _unlock(tokenId_, onlyIfExpired_);
+        _burn(tokenId_, onlyIfExpired_);
 
-        emit VspWithdrawn(tokenId_);
+        emit VspUnlocked(tokenId_);
     }
 
     /** Governance methods **/
