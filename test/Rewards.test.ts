@@ -133,7 +133,7 @@ describe('Rewards', function () {
       // then
       await expect(tx).emit(rewards, 'RewardTokenAdded').withArgs(WETH_ADDRESS, [])
       const now = await timestampFromLatestBlock()
-      const {isBoosted, periodFinish, rewardRates, rewardPerTokenStored, lastUpdateTime} = await rewards.rewardData(
+      const {isBoosted, periodFinish, rewardRates, rewardPerTokenStored, lastUpdateTime} = await rewards.rewards(
         rewardsTokenAddress
       )
       expect(isBoosted).true
@@ -241,7 +241,7 @@ describe('Rewards', function () {
       const expectedRewardRates = amount.div(duration)
       const expectedRewardPerToken = 0
 
-      const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+      const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
       expect(rewardPerTokenStored).eq(expectedRewardPerToken)
       expect(rewardRates).eq(expectedRewardRates)
       expect(periodFinish).eq(now + duration.toNumber())
@@ -274,7 +274,7 @@ describe('Rewards', function () {
         const expectedRewardRates = amount.div(duration)
         const expectedRewardPerToken = 0
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).eq(expectedRewardPerToken)
         expect(rewardRates).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
@@ -288,7 +288,7 @@ describe('Rewards', function () {
         const amount = parseEther('30')
         await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         await increaseTime(duration.add(1))
-        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewards(rewardToken)
         const balanceBefore = await weth.balanceOf(rewards.address)
 
         // when
@@ -307,7 +307,7 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalBoosted())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
         expect(rewardRates).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
@@ -322,7 +322,7 @@ describe('Rewards', function () {
         await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         const halfPeriod = duration.div(2)
         await increaseTime(halfPeriod)
-        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewards(rewardToken)
 
         // when
         const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
@@ -336,7 +336,7 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalBoosted())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
         expect(rewardRates).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
         expect(periodFinish).eq(now + duration.toNumber())
@@ -370,7 +370,7 @@ describe('Rewards', function () {
         const expectedRewardRates = amount.div(duration)
         const expectedRewardPerToken = 0
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).eq(expectedRewardPerToken)
         expect(rewardRates).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
@@ -384,7 +384,7 @@ describe('Rewards', function () {
         const amount = parseEther('30')
         await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         await increaseTime(duration.add(1))
-        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewards(rewardToken)
         const balanceBefore = await weth.balanceOf(rewards.address)
 
         // when
@@ -403,7 +403,7 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalLocked())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
         expect(rewardRates).eq(expectedRewardRates)
         expect(periodFinish).eq(now + duration.toNumber())
@@ -418,7 +418,7 @@ describe('Rewards', function () {
         await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         const halfPeriod = duration.div(2)
         await increaseTime(halfPeriod)
-        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewards(rewardToken)
 
         // when
         const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
@@ -432,7 +432,7 @@ describe('Rewards', function () {
           .mul(parseEther('1'))
           .div(await esVsp.totalLocked())
 
-        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewardData(rewardToken)
+        const {rewardPerTokenStored, rewardRates, periodFinish, lastUpdateTime} = await rewards.rewards(rewardToken)
         expect(rewardPerTokenStored).closeTo(expectedRewardPerToken, parseEther('0.0001'))
         expect(rewardRates).closeTo(parseEther('1.5').div(DAY), parseEther('0.0001'))
         expect(periodFinish).eq(now + duration.toNumber())
@@ -562,7 +562,7 @@ describe('Rewards', function () {
       it('should update global state only if account is null', async function () {
         // given
         const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
-          await rewards.rewardData(WETH_ADDRESS)
+          await rewards.rewards(WETH_ADDRESS)
 
         // when
         const elapsedTime = DAY.mul(10)
@@ -570,15 +570,16 @@ describe('Rewards', function () {
         await rewards.updateReward(ethers.constants.AddressZero)
 
         // then
-        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} =
-          await rewards.rewardData(WETH_ADDRESS)
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await rewards.rewards(
+          WETH_ADDRESS
+        )
         expect(rewardPerTokenAfter).gt(rewardPerTokenBefore)
         expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
       })
 
       it('should give no rewards if account did not lock', async function () {
         // given
-        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.userRewardData(
+        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
           WETH_ADDRESS,
           carl.address
         )
@@ -590,18 +591,15 @@ describe('Rewards', function () {
         await rewards.updateReward(carl.address)
 
         // then
-        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.userRewardData(
-          WETH_ADDRESS,
-          carl.address
-        )
+        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.rewardOf(WETH_ADDRESS, carl.address)
         expect(claimableRewardsStoredAfter).eq(0)
       })
 
       it('should update if now < period finish', async function () {
         // given
         const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
-          await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.userRewardData(
+          await rewards.rewards(WETH_ADDRESS)
+        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
@@ -624,9 +622,10 @@ describe('Rewards', function () {
         const claimableAfter = await rewards.claimableRewards(alice.address)
         expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
 
-        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} =
-          await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.userRewardData(
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await rewards.rewards(
+          WETH_ADDRESS
+        )
+        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
@@ -637,15 +636,15 @@ describe('Rewards', function () {
 
       it('should update if now >= period finish', async function () {
         // given
-        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.userRewardData(
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewards(WETH_ADDRESS)
+        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
         expect(claimableRewardsStoredBefore).eq(0)
         const claimableBefore = await rewards.claimableRewards(alice.address)
         expect(claimableBefore._claimableAmounts[0]).eq(0)
-        const {periodFinish} = await rewards.rewardData(WETH_ADDRESS)
+        const {periodFinish} = await rewards.rewards(WETH_ADDRESS)
 
         // when
         const elapsedTime = YEAR
@@ -662,9 +661,10 @@ describe('Rewards', function () {
         const claimableAfter = await rewards.claimableRewards(alice.address)
         expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
 
-        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} =
-          await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.userRewardData(
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await rewards.rewards(
+          WETH_ADDRESS
+        )
+        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
@@ -688,7 +688,7 @@ describe('Rewards', function () {
       it('should update global state only if account is null', async function () {
         // given
         const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
-          await rewards.rewardData(WETH_ADDRESS)
+          await rewards.rewards(WETH_ADDRESS)
 
         // when
         const elapsedTime = DAY.mul(10)
@@ -696,15 +696,16 @@ describe('Rewards', function () {
         await rewards.updateReward(ethers.constants.AddressZero)
 
         // then
-        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} =
-          await rewards.rewardData(WETH_ADDRESS)
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await rewards.rewards(
+          WETH_ADDRESS
+        )
         expect(rewardPerTokenAfter).gt(rewardPerTokenBefore)
         expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
       })
 
       it('should give no rewards if account did not lock', async function () {
         // given
-        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.userRewardData(
+        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
           WETH_ADDRESS,
           carl.address
         )
@@ -716,18 +717,15 @@ describe('Rewards', function () {
         await rewards.updateReward(carl.address)
 
         // then
-        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.userRewardData(
-          WETH_ADDRESS,
-          carl.address
-        )
+        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.rewardOf(WETH_ADDRESS, carl.address)
         expect(claimableRewardsStoredAfter).eq(0)
       })
 
       it('should update if now < period finish', async function () {
         // given
         const {rewardPerTokenStored: rewardPerTokenBefore, lastUpdateTime: lastUpdateTimeBefore} =
-          await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.userRewardData(
+          await rewards.rewards(WETH_ADDRESS)
+        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
@@ -750,9 +748,10 @@ describe('Rewards', function () {
         const claimableAfter = await rewards.claimableRewards(alice.address)
         expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
 
-        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} =
-          await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.userRewardData(
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await rewards.rewards(
+          WETH_ADDRESS
+        )
+        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
@@ -763,15 +762,15 @@ describe('Rewards', function () {
 
       it('should update if now >= period finish', async function () {
         // given
-        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.userRewardData(
+        const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewards(WETH_ADDRESS)
+        const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
         expect(claimableRewardsStoredBefore).eq(0)
         const claimableBefore = await rewards.claimableRewards(alice.address)
         expect(claimableBefore._claimableAmounts[0]).eq(0)
-        const {periodFinish} = await rewards.rewardData(WETH_ADDRESS)
+        const {periodFinish} = await rewards.rewards(WETH_ADDRESS)
 
         // when
         const elapsedTime = YEAR
@@ -788,9 +787,10 @@ describe('Rewards', function () {
         const claimableAfter = await rewards.claimableRewards(alice.address)
         expect(claimableAfter._claimableAmounts[0]).closeTo(expectDrip, parseEther('0.0001'))
 
-        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} =
-          await rewards.rewardData(WETH_ADDRESS)
-        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.userRewardData(
+        const {rewardPerTokenStored: rewardPerTokenAfter, lastUpdateTime: lastUpdateTimeAfter} = await rewards.rewards(
+          WETH_ADDRESS
+        )
+        const {claimableRewardsStored: claimableRewardsStoredAfter} = await rewards.rewardOf(
           WETH_ADDRESS,
           alice.address
         )
@@ -825,7 +825,7 @@ describe('Rewards', function () {
 
         // then
         await expect(tx).changeTokenBalance(weth, alice, claimable)
-        const {claimableRewardsStored} = await rewards.userRewardData(WETH_ADDRESS, alice.address)
+        const {claimableRewardsStored} = await rewards.rewardOf(WETH_ADDRESS, alice.address)
         expect(claimableRewardsStored).eq(0)
       })
     })
@@ -853,7 +853,7 @@ describe('Rewards', function () {
 
         // then
         await expect(tx).changeTokenBalance(usdc, alice, claimable)
-        const {claimableRewardsStored} = await rewards.userRewardData(WETH_ADDRESS, alice.address)
+        const {claimableRewardsStored} = await rewards.rewardOf(WETH_ADDRESS, alice.address)
         expect(claimableRewardsStored).eq(0)
       })
     })

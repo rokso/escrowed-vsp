@@ -6,30 +6,44 @@ import "../interface/IESVSP.sol";
 import "../interface/IRewards.sol";
 
 abstract contract RewardsStorageV1 is IRewards {
-    // Each RewardToken has its setup
     struct Reward {
         bool isBoosted; // linear distribution if false
-        uint256 periodFinish;
-        uint256 rewardRates;
-        uint256 lastUpdateTime; // stores last drip (or reward deposit) time
-        uint256 rewardPerTokenStored;
+        uint256 periodFinish; // end of a drip period
+        uint256 rewardRates; // distribuition per second (i.e. dripAmount/dripPeriod)
+        uint256 lastUpdateTime; // stores last drip time
+        uint256 rewardPerTokenStored; // reward per VSP
     }
 
     struct UserReward {
-        uint128 rewardPerTokenPaid;
-        uint128 claimableRewardsStored;
+        uint128 rewardPerTokenPaid; // reward per VSP accumulator
+        uint128 claimableRewardsStored; // pending to claim
     }
 
+    /**
+     * @notice Locker contract
+     */
     IESVSP public esVSP;
 
-    /// Array of reward tokens
+    /**
+     * @notice Array of reward tokens
+     */
     address[] public rewardTokens;
 
-    // RewardToken => Reward data
-    mapping(address => Reward) public rewardData;
+    /**
+     * @notice Rewards state per token
+     * @dev RewardToken => Reward
+     */
+    mapping(address => Reward) public rewards;
 
-    mapping(address => mapping(address => UserReward)) public userRewardData;
+    /**
+     * @notice User's rewards state per token
+     * @dev User => RewardToken => UserReward
+     */
+    mapping(address => mapping(address => UserReward)) public rewardOf;
 
-    // RewardToken -> distributor -> is approved to add rewards
+    /**
+     * @notice Reward distributors
+     * RewardToken -> distributor -> is approved to drip
+     */
     mapping(address => mapping(address => bool)) public isRewardDistributor;
 }
