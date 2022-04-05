@@ -15,11 +15,26 @@ abstract contract ESVSPStorageV1 is IESVSP {
     uint8 public decimals;
     string public name;
     string public symbol;
+
+    /**
+     * @notice NFT contract
+     */
     IESVSP721 public esVSP721;
+
+    /**
+     * @notice Rewards contract
+     */
     IRewards public rewards;
 
-    uint256 public override totalLocked; // VSP locked accumulator
-    uint256 public override totalBoosted; // boostedAmount accumulator
+    /**
+     * @notice Total VSP locked
+     */
+    uint256 public override totalLocked;
+
+    /**
+     * @notice Total boosted amount
+     */
+    uint256 public override totalBoosted;
 
     /**
      * @notice Fee paid when withdrawing. Decreases linearly as period finish approaches.
@@ -27,12 +42,21 @@ abstract contract ESVSPStorageV1 is IESVSP {
      */
     uint256 public exitPenalty;
 
-    // tokenId => locked
+    /**
+     * @notice Lock positions
+     * @dev tokenId => position
+     */
     mapping(uint256 => LockPosition) public positions;
 
-    // user => total locked;
+    /**
+     * @notice Total VSP locked by user among all his positions
+     * @dev user => total locked;
+     */
     mapping(address => uint256) public override locked;
 
-    // user => total boosted;
+    /**
+     * @notice Total boosted amount by user among all his positions
+     * @dev user => total boosted;
+     */
     mapping(address => uint256) public override boosted;
 }
