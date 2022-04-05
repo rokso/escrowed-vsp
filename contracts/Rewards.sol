@@ -62,18 +62,18 @@ contract Rewards is Governable, RewardsStorageV1 {
      */
     function claimRewards(address account_) external override {
         uint256 _len = rewardTokens.length;
-        uint256 totalSupply_;
-        uint256 userBalance_;
+        uint256 _totalSupply;
+        uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
             address _rewardToken = rewardTokens[i];
             if (rewards[_rewardToken].isBoosted) {
-                totalSupply_ = esVSP.totalBoosted();
-                userBalance_ = esVSP.boosted(account_);
+                _totalSupply = esVSP.totalBoosted();
+                _userBalance = esVSP.boosted(account_);
             } else {
-                totalSupply_ = esVSP.totalLocked();
-                userBalance_ = esVSP.locked(account_);
+                _totalSupply = esVSP.totalLocked();
+                _userBalance = esVSP.locked(account_);
             }
-            _updateReward(_rewardToken, account_, totalSupply_, userBalance_);
+            _updateReward(_rewardToken, account_, _totalSupply, _userBalance);
             // Claim rewards
             uint256 _reward = rewardOf[_rewardToken][account_].claimableRewardsStored;
             _claimReward(_rewardToken, account_, _reward);
@@ -217,9 +217,9 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 balance_
     ) internal {
         uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
-        Reward storage rewardData_ = rewards[rewardToken_];
-        rewardData_.rewardPerTokenStored = _rewardPerTokenStored;
-        rewardData_.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
+        Reward storage _rewardData = rewards[rewardToken_];
+        _rewardData.rewardPerTokenStored = _rewardPerTokenStored;
+        _rewardData.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
         if (account_ != address(0)) {
             UserReward storage _userReward = rewardOf[rewardToken_][account_];
             _userReward.claimableRewardsStored = _claimable(rewardToken_, account_, totalSupply_, balance_).toUint128();
