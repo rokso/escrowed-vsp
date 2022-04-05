@@ -193,10 +193,20 @@ describe('ESVSP', function () {
 
       // when
       const tokenId = 1
-      const tx = esVsp.connect(bob).withdraw(tokenId)
+      const tx = esVsp.connect(bob).withdraw(tokenId, false)
 
       // then
       await expect(tx).revertedWith('not-position-owner')
+    })
+
+    it('should revert if user do not want to pay penalty but position did not reach unlock time', async function () {
+      // when
+      const tokenId = 1
+      const beforeUnlockTime = false
+      const tx = esVsp.withdraw(tokenId, beforeUnlockTime)
+
+      // then
+      await expect(tx).revertedWith('not-unlocked-yet')
     })
 
     it('should pay exit penalty when withdrawing before unlock time', async function () {
@@ -211,17 +221,19 @@ describe('ESVSP', function () {
       const carlBefore = await vsp.balanceOf(carl.address)
 
       // when
-      await esVsp.withdraw(1)
+      const beforeUnlockTime = true
+
+      await esVsp.withdraw(1, beforeUnlockTime)
       // just after deposit: full penalty
       expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('0.001'))
 
       await increaseTime(YEAR.div(2))
-      await esVsp.connect(bob).withdraw(2)
+      await esVsp.connect(bob).withdraw(2, beforeUnlockTime)
       // 6mo layer: half penalty
       expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('0.001'))
 
       await increaseTime(YEAR.div(2))
-      await esVsp.connect(carl).withdraw(3)
+      await esVsp.connect(carl).withdraw(3, beforeUnlockTime)
       // 1y later: no penalty
       expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('0.001'))
     })
@@ -234,7 +246,8 @@ describe('ESVSP', function () {
       await increaseTime(YEAR.add(1))
 
       const tokenId = 1
-      const tx = esVsp.withdraw(tokenId)
+      const beforeUnlockTime = false
+      const tx = esVsp.withdraw(tokenId, beforeUnlockTime)
 
       // then
       await expect(tx).emit(esVsp, 'VspWithdrawn').withArgs(tokenId)

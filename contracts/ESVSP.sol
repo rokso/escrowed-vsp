@@ -157,11 +157,12 @@ contract ESVSP is Governable, StorageV1 {
     /**
      * @notice Withdraw VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
+     * @param beforeUnlockTime_ When `true` unlock before expiration and pays exit penalty
      */
     // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake naming instead?
-    function withdraw(uint256 tokenId_) external override {
+    function withdraw(uint256 tokenId_, bool beforeUnlockTime_) external override {
         updateReward(_msgSender());
-        _withdraw(tokenId_);
+        _withdraw(tokenId_, !beforeUnlockTime_);
         _kickAllExpiredOf(_msgSender());
     }
 
@@ -326,13 +327,19 @@ contract ESVSP is Governable, StorageV1 {
 
     /**
      * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
-     * @param tokenId_ The of the position (NFT)
+     * @param tokenId_ The id of the position (NFT)
+     * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
      */
-    function _unlock(uint256 tokenId_) internal {
+    function _unlock(uint256 tokenId_, bool onlyIfExpired_) internal {
         StakeData memory _stakeData = stakeData[tokenId_];
-        address _account = esVSP721.ownerOf(tokenId_);
+
+        if (onlyIfExpired_) {
+            require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
+        }
+
         uint256 _locked = _stakeData.lockedAmount;
         uint256 _boosted = _stakeData.boostedAmount;
+        address _account = esVSP721.ownerOf(tokenId_);
 
         esVSP721.burn(tokenId_);
         delete stakeData[tokenId_];
@@ -354,20 +361,17 @@ contract ESVSP is Governable, StorageV1 {
         VSP.safeTransfer(_account, _toTransfer);
     }
 
-    function _withdraw(uint256 tokenId_) internal {
+    function _withdraw(uint256 tokenId_, bool onlyIfExpired_) internal {
         address _account = esVSP721.ownerOf(tokenId_);
         require(_msgSender() == _account, "not-position-owner");
 
-        _unlock(tokenId_);
+        _unlock(tokenId_, onlyIfExpired_);
 
         emit VspWithdrawn(tokenId_);
     }
 
     function _kick(uint256 tokenId_) internal {
-        StakeData memory _stakeData = stakeData[tokenId_];
-        require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
-
-        _unlock(tokenId_);
+        _unlock(tokenId_, true);
 
         emit PositionKicked(tokenId_);
     }

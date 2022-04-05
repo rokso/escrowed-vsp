@@ -52,7 +52,7 @@ interface IESVSP is IERC20, IERC20Metadata {
 
     function updateExitPenalty(uint256 exitPenalty_) external;
 
-    function withdraw(uint256 tokenId_) external;
+    function withdraw(uint256 tokenId_, bool unexpired_) external;
 
     function kick(uint256 tokenId_) external;
 
