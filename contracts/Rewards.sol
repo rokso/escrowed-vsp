@@ -83,15 +83,6 @@ contract Rewards is Governable, RewardsStorageV1 {
     }
 
     /**
-     * @notice Returns timestamp of last reward update
-     * @param _rewardToken The reward token
-     * @return The timestamp
-     */
-    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
-        return Math.min(block.timestamp, rewards[_rewardToken].periodFinish);
-    }
-
-    /**
      * @notice Drip reward token and extend current reward duration by 30 days
      * User get drip based on their boosted VSP amount
      * @dev Restricted method
@@ -104,6 +95,15 @@ contract Rewards is Governable, RewardsStorageV1 {
         // TODO: We can remove this check we won't have remove reward token feature
         require(rewards[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         _dripRewardAmount(rewardToken_, rewardAmount_);
+    }
+
+    /**
+     * @notice Returns timestamp of last reward update
+     * @param _rewardToken The reward token
+     * @return The timestamp
+     */
+    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
+        return Math.min(block.timestamp, rewards[_rewardToken].periodFinish);
     }
 
     /**

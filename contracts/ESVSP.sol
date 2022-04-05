@@ -126,6 +126,42 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     }
 
     /**
+     * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
+     * @param tokenId_ The id of the position (NFT)
+     * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
+     */
+    function _burn(uint256 tokenId_, bool onlyIfExpired_) internal {
+        LockPosition memory _position = positions[tokenId_];
+
+        if (onlyIfExpired_) {
+            require(block.timestamp > _position.unlockTime, "not-unlocked-yet");
+        }
+
+        uint256 _locked = _position.lockedAmount;
+        uint256 _boosted = _position.boostedAmount;
+        address _account = esVSP721.ownerOf(tokenId_);
+
+        esVSP721.burn(tokenId_);
+        delete positions[tokenId_];
+
+        locked[_account] -= _locked;
+        totalLocked -= _locked;
+        boosted[_account] -= _boosted;
+        totalBoosted -= _boosted;
+
+        uint256 _toTransfer = _locked;
+
+        if (block.timestamp <= _position.unlockTime) {
+            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
+            uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
+            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
+            _toTransfer -= _penalty;
+        }
+
+        VSP.safeTransfer(_account, _toTransfer);
+    }
+
+    /**
      * @notice Kick all expired positions of a user
      * @param account_ The target account
      */
@@ -192,52 +228,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     }
 
     /**
-     * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
-     * @param tokenId_ The id of the position (NFT)
-     * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
-     */
-    function _burn(uint256 tokenId_, bool onlyIfExpired_) internal {
-        LockPosition memory _position = positions[tokenId_];
-
-        if (onlyIfExpired_) {
-            require(block.timestamp > _position.unlockTime, "not-unlocked-yet");
-        }
-
-        uint256 _locked = _position.lockedAmount;
-        uint256 _boosted = _position.boostedAmount;
-        address _account = esVSP721.ownerOf(tokenId_);
-
-        esVSP721.burn(tokenId_);
-        delete positions[tokenId_];
-
-        locked[_account] -= _locked;
-        totalLocked -= _locked;
-        boosted[_account] -= _boosted;
-        totalBoosted -= _boosted;
-
-        uint256 _toTransfer = _locked;
-
-        if (block.timestamp <= _position.unlockTime) {
-            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
-            uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
-            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
-            _toTransfer -= _penalty;
-        }
-
-        VSP.safeTransfer(_account, _toTransfer);
-    }
-
-    /**
-     * @notice Update related rewards
-     * @param account_ The account to update
-     */
-    function _updateReward(address account_) private {
-        if (address(rewards) != address(0)) {
-            rewards.updateReward(account_);
-        }
-    }
-
-    /**
      * @notice Unlock VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
@@ -248,6 +238,16 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         _burn(tokenId_, onlyIfExpired_);
 
         emit VspUnlocked(tokenId_);
+    }
+
+    /**
+     * @notice Update related rewards
+     * @param account_ The account to update
+     */
+    function _updateReward(address account_) private {
+        if (address(rewards) != address(0)) {
+            rewards.updateReward(account_);
+        }
     }
 
     /** Governance methods **/
