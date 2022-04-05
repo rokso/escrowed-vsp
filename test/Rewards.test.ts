@@ -186,7 +186,7 @@ describe('Rewards', function () {
     })
   })
 
-  describe('notifyRewardAmount', function () {
+  describe('dripRewardAmount', function () {
     beforeEach(async function () {
       rewards = rewards.connect(distributor)
 
@@ -195,7 +195,7 @@ describe('Rewards', function () {
 
     it('should revert if not distributor', async function () {
       // when
-      const tx = rewards.connect(alice).notifyRewardAmount(WETH_ADDRESS, parseEther('0.1'))
+      const tx = rewards.connect(alice).dripRewardAmount(WETH_ADDRESS, parseEther('0.1'))
 
       // then
       await expect(tx).revertedWith('not-distributor')
@@ -206,7 +206,7 @@ describe('Rewards', function () {
       await rewards.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
 
       // when
-      const tx = rewards.notifyRewardAmount(WETH_ADDRESS, 0)
+      const tx = rewards.dripRewardAmount(WETH_ADDRESS, 0)
 
       // then
       await expect(tx).revertedWith('incorrect-reward-amount')
@@ -214,13 +214,13 @@ describe('Rewards', function () {
 
     it('should revert if reward token is invalid', async function () {
       // when
-      const tx = rewards.notifyRewardAmount(USDC_ADDRESS, parseUnits('100', 6))
+      const tx = rewards.dripRewardAmount(USDC_ADDRESS, parseUnits('100', 6))
 
       // then
       await expect(tx).reverted
     })
 
-    it('should notify when there is no VSP locked', async function () {
+    it('should drip when there is no VSP locked', async function () {
       // given
       await rewards.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
       const duration = await rewards.REWARD_DURATION()
@@ -229,7 +229,7 @@ describe('Rewards', function () {
       // when
       const rewardToken = WETH_ADDRESS
       const amount = parseEther('10')
-      const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+      const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
       // then
       await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -248,13 +248,13 @@ describe('Rewards', function () {
       expect(lastUpdateTime).eq(now)
     })
 
-    describe('should notify when token is boosted', function () {
+    describe('should drip when token is boosted', function () {
       beforeEach(async function () {
         await rewards.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, true)
         await esVsp.connect(alice).lock(parseEther('100'), YEAR)
       })
 
-      it('should notify if now >= period finish (1st notification)', async function () {
+      it('should drip if now >= period finish (1st notification)', async function () {
         // given
         const duration = await rewards.REWARD_DURATION()
         const balanceBefore = await weth.balanceOf(rewards.address)
@@ -262,7 +262,7 @@ describe('Rewards', function () {
         // when
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30') // 1 ETH daily
-        const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         // then
         await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -281,18 +281,18 @@ describe('Rewards', function () {
         expect(lastUpdateTime).eq(now)
       })
 
-      it('should notify if now >= period finish', async function () {
+      it('should drip if now >= period finish', async function () {
         // given
         const duration = await rewards.REWARD_DURATION()
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         await increaseTime(duration.add(1))
         const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
         const balanceBefore = await weth.balanceOf(rewards.address)
 
         // when
-        const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         // then
         await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -314,18 +314,18 @@ describe('Rewards', function () {
         expect(lastUpdateTime).eq(now)
       })
 
-      it('should notify if now < period finish', async function () {
+      it('should drip if now < period finish', async function () {
         // given
         const duration = await rewards.REWARD_DURATION()
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         const halfPeriod = duration.div(2)
         await increaseTime(halfPeriod)
         const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
 
         // when
-        const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         // then
         await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -344,13 +344,13 @@ describe('Rewards', function () {
       })
     })
 
-    describe('should notify when token is not boosted', function () {
+    describe('should drip when token is not boosted', function () {
       beforeEach(async function () {
         await rewards.connect(governor).addRewardToken(WETH_ADDRESS, distributor.address, false)
         await esVsp.connect(alice).lock(parseEther('100'), YEAR)
       })
 
-      it('should notify if now >= period finish (1st notification)', async function () {
+      it('should drip if now >= period finish (1st notification)', async function () {
         // given
         const duration = await rewards.REWARD_DURATION()
         const balanceBefore = await weth.balanceOf(rewards.address)
@@ -358,7 +358,7 @@ describe('Rewards', function () {
         // when
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30') // 1 ETH daily
-        const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         // then
         await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -377,18 +377,18 @@ describe('Rewards', function () {
         expect(lastUpdateTime).eq(now)
       })
 
-      it('should notify if now >= period finish', async function () {
+      it('should drip if now >= period finish', async function () {
         // given
         const duration = await rewards.REWARD_DURATION()
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         await increaseTime(duration.add(1))
         const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
         const balanceBefore = await weth.balanceOf(rewards.address)
 
         // when
-        const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         // then
         await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -410,18 +410,18 @@ describe('Rewards', function () {
         expect(lastUpdateTime).eq(now)
       })
 
-      it('should notify if now < period finish', async function () {
+      it('should drip if now < period finish', async function () {
         // given
         const duration = await rewards.REWARD_DURATION()
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
         const halfPeriod = duration.div(2)
         await increaseTime(halfPeriod)
         const {rewardPerTokenStored: rewardPerTokenBefore} = await rewards.rewardData(rewardToken)
 
         // when
-        const tx = rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        const tx = rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         // then
         await expect(tx).emit(rewards, 'RewardAdded').withArgs(rewardToken, amount, duration)
@@ -451,7 +451,7 @@ describe('Rewards', function () {
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
         await weth.connect(distributor).approve(rewards.address, amount)
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         await increaseTime(DAY.mul(10))
       })
@@ -503,7 +503,7 @@ describe('Rewards', function () {
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
         await weth.connect(distributor).approve(rewards.address, amount)
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
 
         await increaseTime(DAY.mul(10))
       })
@@ -556,7 +556,7 @@ describe('Rewards', function () {
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
         await weth.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
       })
 
       it('should update global state only if account is null', async function () {
@@ -682,7 +682,7 @@ describe('Rewards', function () {
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
         await weth.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
       })
 
       it('should update global state only if account is null', async function () {
@@ -810,7 +810,7 @@ describe('Rewards', function () {
         const rewardToken = WETH_ADDRESS
         const amount = parseEther('30')
         await weth.connect(distributor).approve(rewards.address, amount)
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
       })
 
       it('should claim pending rewards', async function () {
@@ -838,7 +838,7 @@ describe('Rewards', function () {
         const rewardToken = USDC_ADDRESS
         const amount = parseUnits('30', 6)
         await usdc.connect(distributor).approve(rewards.address, amount)
-        await rewards.connect(distributor).notifyRewardAmount(rewardToken, amount)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
       })
 
       it('should claim pending rewards', async function () {

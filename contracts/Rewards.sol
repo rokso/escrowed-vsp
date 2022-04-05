@@ -98,12 +98,12 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardToken_ Reward token address
      * @param rewardAmount_  Reward amount
      */
-    function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
+    function dripRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
         // TODO: We can remove this check we won't have remove reward token feature
         require(rewardData[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
-        _notifyRewardAmount(rewardToken_, rewardAmount_);
+        _dripRewardAmount(rewardToken_, rewardAmount_);
     }
 
     /**
@@ -168,7 +168,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardToken_ Reward token address
      * @param rewardAmount_  Reward amount
      */
-    function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
+    function _dripRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
         IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
         Reward storage _rewardData = rewardData[rewardToken_];
         uint256 _totalSupply = _rewardData.isBoosted ? esVSP.totalBoosted() : esVSP.totalLocked();
@@ -182,7 +182,6 @@ contract Rewards is Governable, RewardsStorageV1 {
         }
 
         // Start new drip time
-        // TODO: Want we to use "drip" or "notify" naming?
         _rewardData.lastUpdateTime = block.timestamp;
         _rewardData.periodFinish = block.timestamp + REWARD_DURATION;
         emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
@@ -250,7 +249,7 @@ contract Rewards is Governable, RewardsStorageV1 {
     /**
      * @notice add new reward token for distribution
      * @param rewardsToken_ Reward token address
-     * @param distributor_  Authorized called to call notifyRewardAmount
+     * @param distributor_  Authorized called to call dripRewardAmount
      * @param isBoosted_ If reward token is boosted than rewards is distributed on boost amount depends on lock period
      */
     function addRewardToken(

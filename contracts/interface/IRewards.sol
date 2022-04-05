@@ -27,7 +27,7 @@ interface IRewards {
         view
         returns (address[] memory rewardTokens_, uint256[] memory claimableAmounts_);
 
-    function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external;
+    function dripRewardAmount(address rewardToken_, uint256 rewardAmount_) external;
 
     function setRewardDistributorApproval(
         address rewardsToken_,
