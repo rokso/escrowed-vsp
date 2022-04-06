@@ -28,6 +28,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         IESVSP721 esVSP721_
     ) public initializer {
         require(address(esVSP721_) != address(0), "esVSP721-is-null");
+
+        __Governable_init();
+
         name = name_;
         symbol = symbol_;
         decimals = decimals_;

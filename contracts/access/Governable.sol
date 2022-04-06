@@ -35,7 +35,7 @@ abstract contract Governable is IGovernable, Context, Initializable {
      * __Governable_init() function to initialization this contract
      */
     // solhint-disable-next-line func-name-mixedcase
-    function __Governable_init() internal initializer {
+    function __Governable_init() internal onlyInitializing {
         address msgSender = _msgSender();
         governor = msgSender;
         emit UpdatedGovernor(address(0), msgSender);

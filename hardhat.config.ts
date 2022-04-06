@@ -1,6 +1,7 @@
 import {HardhatUserConfig} from 'hardhat/types'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-ethers'
+import '@nomiclabs/hardhat-etherscan'
 import 'solidity-coverage'
 import 'hardhat-deploy'
 import 'hardhat-log-remover'
@@ -62,6 +63,9 @@ const config: HardhatUserConfig = {
         },
       },
     },
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY,
   },
   spdxLicenseIdentifier: {
     overwrite: true,

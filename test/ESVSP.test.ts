@@ -52,8 +52,9 @@ describe('ESVSP', function () {
     await esVsp.deployed()
 
     const esVsp721Factory = new ESVSP721__factory(deployer)
-    esVsp721 = await esVsp721Factory.deploy(esVsp.address, 'VSP Escrow NFT', 'esVSP-NFT')
+    esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
     await esVsp721.deployed()
+    await esVsp721.setESVSP(esVsp.address)
 
     await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address)
     await esVsp.transferGovernorship(governor.address)

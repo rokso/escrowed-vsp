@@ -9,16 +9,16 @@ import "./interface/IESVSP721.sol";
 
 contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     string public baseTokenURI;
-    address public esVSP;
+    IESVSP public esVSP;
     uint256 public nextTokenId = 1;
 
-    constructor(
-        address esVSP_,
-        string memory name_,
-        string memory symbol_
-    ) ERC721(name_, symbol_) {
-        esVSP = esVSP_;
-    }
+    /// Emitted when `baseTokenURI` is updated
+    event BaseTokenURIUpdated(string oldBaseTokenURI, string newBaseTokenURI);
+
+    /// Emitted when esVSP contract is updated
+    event ESVSPUpdated(IESVSP oldESVSP, IESVSP newESVSP);
+
+    constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {}
 
     /**
      * @notice Burn NFT
@@ -26,7 +26,7 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @param tokenId_ The id of the token to burn
      */
     function burn(uint256 tokenId_) external {
-        require(msg.sender == esVSP, "not-esvsp");
+        require(msg.sender == address(esVSP), "not-esvsp");
         _burn(tokenId_);
     }
 
@@ -36,17 +36,16 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @param to_ The receiver account
      */
     function mint(address to_) external returns (uint256 _tokenId) {
-        require(msg.sender == esVSP, "not-esvsp");
+        require(msg.sender == address(esVSP), "not-esvsp");
         _tokenId = nextTokenId++;
         _mint(to_, _tokenId);
     }
 
     /**
-     * @notice Get the token URI
-     * @param _tokenId The token id
+     * @notice Base URI
      */
-    function tokenURI(uint256 _tokenId) public view override returns (string memory) {
-        return string(abi.encodePacked(baseTokenURI, Strings.toString(_tokenId)));
+    function _baseURI() internal view override returns (string memory) {
+        return baseTokenURI;
     }
 
     /**
@@ -60,7 +59,7 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
         super._beforeTokenTransfer(from_, to_, tokenId_);
 
         if (from_ != address(0) && to_ != address(0)) {
-            IESVSP(esVSP).transferPosition(tokenId_, to_);
+            esVSP.transferPosition(tokenId_, to_);
         }
     }
 
@@ -70,6 +69,16 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @notice Update the base token URI
      */
     function setBaseTokenURI(string memory baseTokenURI_) public onlyGovernor {
+        emit BaseTokenURIUpdated(baseTokenURI, baseTokenURI_);
         baseTokenURI = baseTokenURI_;
+    }
+
+    /**
+     * @notice Set esVSP contract
+     */
+    function setESVSP(IESVSP esVSP_) public onlyGovernor {
+        require(address(esVSP_) != address(0), "address-is-null");
+        emit ESVSPUpdated(esVSP, esVSP_);
+        esVSP = esVSP_;
     }
 }
