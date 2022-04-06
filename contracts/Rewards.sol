@@ -157,7 +157,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      */
     function _dripRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
         uint256 _balanceBefore = IERC20(rewardToken_).balanceOf(address(this));
-        IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
+        IERC20(rewardToken_).safeTransferFrom(_msgSender(), address(this), rewardAmount_);
         uint256 _dripAmount = IERC20(rewardToken_).balanceOf(address(this)) - _balanceBefore;
 
         Reward storage _reward = rewards[rewardToken_];
