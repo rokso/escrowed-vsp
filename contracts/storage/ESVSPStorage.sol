@@ -6,8 +6,8 @@ import "../interface/IESVSP.sol";
 import "../interface/IESVSP721.sol";
 
 abstract contract ESVSPStorageV1 is IESVSP {
-    struct StakeData {
-        uint256 lockedAmount; // VSP deposited
+    struct LockPosition {
+        uint256 lockedAmount; // VSP locked
         uint256 boostedAmount; // based on the `lockPeriod`
         uint256 unlockTime; // now + `lockPeriod`
     }
@@ -15,11 +15,26 @@ abstract contract ESVSPStorageV1 is IESVSP {
     uint8 public decimals;
     string public name;
     string public symbol;
+
+    /**
+     * @notice NFT contract
+     */
     IESVSP721 public esVSP721;
+
+    /**
+     * @notice Rewards contract
+     */
     IRewards public rewards;
 
-    uint256 public override totalLocked; // VSP staked accumulator
-    uint256 public override totalBoosted; // boostedAmount accumulator
+    /**
+     * @notice Total VSP locked
+     */
+    uint256 public override totalLocked;
+
+    /**
+     * @notice Total boosted amount
+     */
+    uint256 public override totalBoosted;
 
     /**
      * @notice Fee paid when withdrawing. Decreases linearly as period finish approaches.
@@ -27,14 +42,21 @@ abstract contract ESVSPStorageV1 is IESVSP {
      */
     uint256 public exitPenalty;
 
-    // tokenId => staked
-    // TODO: What is the best naming to use uniformly among codebase 1) Lock 2) Stake or 3) Escrow?
-    // TODO: Rename to lockPositions or similar?
-    mapping(uint256 => StakeData) public stakeData;
+    /**
+     * @notice Lock positions
+     * @dev tokenId => position
+     */
+    mapping(uint256 => LockPosition) public positions;
 
-    // user => total locked;
+    /**
+     * @notice Total VSP locked by user among all his positions
+     * @dev user => total locked;
+     */
     mapping(address => uint256) public override locked;
 
-    // user => total boosted;
+    /**
+     * @notice Total boosted amount by user among all his positions
+     * @dev user => total boosted;
+     */
     mapping(address => uint256) public override boosted;
 }

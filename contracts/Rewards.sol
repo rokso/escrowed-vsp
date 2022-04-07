@@ -43,7 +43,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 _totalSupply;
         uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
-            if (rewardData[rewardTokens[i]].isBoosted) {
+            if (rewards[rewardTokens[i]].isBoosted) {
                 _totalSupply = esVSP.totalBoosted();
                 _userBalance = esVSP.boosted(account_);
             } else {
@@ -62,33 +62,24 @@ contract Rewards is Governable, RewardsStorageV1 {
      */
     function claimRewards(address account_) external override {
         uint256 _len = rewardTokens.length;
-        uint256 totalSupply_;
-        uint256 userBalance_;
+        uint256 _totalSupply;
+        uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
             address _rewardToken = rewardTokens[i];
-            if (rewardData[_rewardToken].isBoosted) {
-                totalSupply_ = esVSP.totalBoosted();
-                userBalance_ = esVSP.boosted(account_);
+            if (rewards[_rewardToken].isBoosted) {
+                _totalSupply = esVSP.totalBoosted();
+                _userBalance = esVSP.boosted(account_);
             } else {
-                totalSupply_ = esVSP.totalLocked();
-                userBalance_ = esVSP.locked(account_);
+                _totalSupply = esVSP.totalLocked();
+                _userBalance = esVSP.locked(account_);
             }
-            _updateReward(_rewardToken, account_, totalSupply_, userBalance_);
+            _updateReward(_rewardToken, account_, _totalSupply, _userBalance);
             // Claim rewards
-            uint256 _reward = userRewardData[_rewardToken][account_].claimableRewardsStored;
+            uint256 _reward = rewardOf[_rewardToken][account_].claimableRewardsStored;
             _claimReward(_rewardToken, account_, _reward);
             emit RewardPaid(account_, _rewardToken, _reward);
         }
         esVSP.kickAllExpiredOf(account_);
-    }
-
-    /**
-     * @notice Returns timestamp of last reward update
-     * @param _rewardToken The reward token
-     * @return The timestamp
-     */
-    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
-        return Math.min(block.timestamp, rewardData[_rewardToken].periodFinish);
     }
 
     /**
@@ -98,12 +89,20 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardToken_ Reward token address
      * @param rewardAmount_  Reward amount
      */
-    function notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
+    function dripRewardAmount(address rewardToken_, uint256 rewardAmount_) external override {
+        require(rewards[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
         require(isRewardDistributor[rewardToken_][_msgSender()], "not-distributor");
         require(rewardAmount_ > 0, "incorrect-reward-amount");
-        // TODO: We can remove this check we won't have remove reward token feature
-        require(rewardData[rewardToken_].lastUpdateTime > 0, "reward-token-not-added");
-        _notifyRewardAmount(rewardToken_, rewardAmount_);
+        _dripRewardAmount(rewardToken_, rewardAmount_);
+    }
+
+    /**
+     * @notice Returns timestamp of last reward update
+     * @param _rewardToken The reward token
+     * @return The timestamp
+     */
+    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
+        return Math.min(block.timestamp, rewards[_rewardToken].periodFinish);
     }
 
     /**
@@ -115,7 +114,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 _totalSupply;
         uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
-            if (rewardData[rewardTokens[i]].isBoosted) {
+            if (rewards[rewardTokens[i]].isBoosted) {
                 _totalSupply = esVSP.totalBoosted();
                 _userBalance = esVSP.boosted(account_);
             } else {
@@ -140,7 +139,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 totalSupply_,
         uint256 balance_
     ) internal view returns (uint256) {
-        UserReward memory _userReward = userRewardData[rewardToken_][account_];
+        UserReward memory _userReward = rewardOf[rewardToken_][account_];
         uint256 _rewardPerTokenAvailable = _rewardPerToken(rewardToken_, totalSupply_) - _userReward.rewardPerTokenPaid;
         uint256 _rewardsEarnedSinceLastUpdate = (balance_ * _rewardPerTokenAvailable) / 1e18;
         return _userReward.claimableRewardsStored + _rewardsEarnedSinceLastUpdate;
@@ -157,7 +156,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         address account_,
         uint256 reward_
     ) internal virtual {
-        UserReward storage _userReward = userRewardData[rewardToken_][account_];
+        UserReward storage _userReward = rewardOf[rewardToken_][account_];
         _userReward.claimableRewardsStored = 0;
         IERC20(rewardToken_).safeTransfer(account_, reward_);
     }
@@ -168,23 +167,22 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardToken_ Reward token address
      * @param rewardAmount_  Reward amount
      */
-    function _notifyRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
+    function _dripRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
         IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
-        Reward storage _rewardData = rewardData[rewardToken_];
-        uint256 _totalSupply = _rewardData.isBoosted ? esVSP.totalBoosted() : esVSP.totalLocked();
-        _rewardData.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
-        if (block.timestamp >= _rewardData.periodFinish) {
-            _rewardData.rewardRates = rewardAmount_ / REWARD_DURATION;
+        Reward storage _reward = rewards[rewardToken_];
+        uint256 _totalSupply = _reward.isBoosted ? esVSP.totalBoosted() : esVSP.totalLocked();
+        _reward.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
+        if (block.timestamp >= _reward.periodFinish) {
+            _reward.rewardPerSecond = rewardAmount_ / REWARD_DURATION;
         } else {
-            uint256 _remainingPeriod = _rewardData.periodFinish - block.timestamp;
-            uint256 _leftover = _remainingPeriod * _rewardData.rewardRates;
-            _rewardData.rewardRates = (rewardAmount_ + _leftover) / REWARD_DURATION;
+            uint256 _remainingPeriod = _reward.periodFinish - block.timestamp;
+            uint256 _leftover = _remainingPeriod * _reward.rewardPerSecond;
+            _reward.rewardPerSecond = (rewardAmount_ + _leftover) / REWARD_DURATION;
         }
 
         // Start new drip time
-        // TODO: Want we to use "drip" or "notify" naming?
-        _rewardData.lastUpdateTime = block.timestamp;
-        _rewardData.periodFinish = block.timestamp + REWARD_DURATION;
+        _reward.lastUpdateTime = block.timestamp;
+        _reward.periodFinish = block.timestamp + REWARD_DURATION;
         emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
     }
 
@@ -196,13 +194,13 @@ contract Rewards is Governable, RewardsStorageV1 {
      */
     function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
         if (totalSupply_ == 0) {
-            return rewardData[rewardToken_].rewardPerTokenStored;
+            return rewards[rewardToken_].rewardPerTokenStored;
         }
 
-        uint256 _timeSinceLastUpdate = lastTimeRewardApplicable(rewardToken_) - rewardData[rewardToken_].lastUpdateTime;
-        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewardData[rewardToken_].rewardRates;
+        uint256 _timeSinceLastUpdate = lastTimeRewardApplicable(rewardToken_) - rewards[rewardToken_].lastUpdateTime;
+        uint256 _rewardsSinceLastUpdate = _timeSinceLastUpdate * rewards[rewardToken_].rewardPerSecond;
         uint256 _rewardsPerTokenSinceLastUpdate = (_rewardsSinceLastUpdate * 1e18) / totalSupply_;
-        return rewardData[rewardToken_].rewardPerTokenStored + _rewardsPerTokenSinceLastUpdate;
+        return rewards[rewardToken_].rewardPerTokenStored + _rewardsPerTokenSinceLastUpdate;
     }
 
     /**
@@ -219,11 +217,11 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 balance_
     ) internal {
         uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
-        Reward storage rewardData_ = rewardData[rewardToken_];
-        rewardData_.rewardPerTokenStored = _rewardPerTokenStored;
-        rewardData_.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
+        Reward storage _rewardData = rewards[rewardToken_];
+        _rewardData.rewardPerTokenStored = _rewardPerTokenStored;
+        _rewardData.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
         if (account_ != address(0)) {
-            UserReward storage _userReward = userRewardData[rewardToken_][account_];
+            UserReward storage _userReward = rewardOf[rewardToken_][account_];
             _userReward.claimableRewardsStored = _claimable(rewardToken_, account_, totalSupply_, balance_).toUint128();
             _userReward.rewardPerTokenPaid = _rewardPerTokenStored.toUint128();
         }
@@ -242,7 +240,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         address distributor_,
         bool approved_
     ) external onlyGovernor {
-        require(rewardData[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
+        require(rewards[rewardsToken_].lastUpdateTime > 0, "reward-token-not-added");
         isRewardDistributor[rewardsToken_][distributor_] = approved_;
         emit RewardDistributorApprovalUpdated(rewardsToken_, distributor_, approved_);
     }
@@ -250,7 +248,7 @@ contract Rewards is Governable, RewardsStorageV1 {
     /**
      * @notice add new reward token for distribution
      * @param rewardsToken_ Reward token address
-     * @param distributor_  Authorized called to call notifyRewardAmount
+     * @param distributor_  Authorized called to call dripRewardAmount
      * @param isBoosted_ If reward token is boosted than rewards is distributed on boost amount depends on lock period
      */
     function addRewardToken(
@@ -258,11 +256,11 @@ contract Rewards is Governable, RewardsStorageV1 {
         address distributor_,
         bool isBoosted_
     ) external onlyGovernor {
-        require(rewardData[rewardsToken_].lastUpdateTime == 0, "reward-already-added");
-        rewardData[rewardsToken_] = Reward({
+        require(rewards[rewardsToken_].lastUpdateTime == 0, "reward-already-added");
+        rewards[rewardsToken_] = Reward({
             isBoosted: isBoosted_,
             periodFinish: block.timestamp,
-            rewardRates: 0,
+            rewardPerSecond: 0,
             rewardPerTokenStored: 0,
             lastUpdateTime: block.timestamp
         });

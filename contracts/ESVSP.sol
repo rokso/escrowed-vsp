@@ -104,9 +104,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         _updateReward(_from);
         _updateReward(to_);
 
-        StakeData memory _stakeData = stakeData[tokenId_];
-        uint256 _locked = _stakeData.lockedAmount;
-        uint256 _boosted = _stakeData.boostedAmount;
+        LockPosition memory _position = positions[tokenId_];
+        uint256 _locked = _position.lockedAmount;
+        uint256 _boosted = _position.boostedAmount;
 
         locked[_from] -= _locked;
         boosted[_from] -= _boosted;
@@ -115,15 +115,50 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     }
 
     /**
-     * @notice Withdraw VSP by burning given ERC721 tokenId_
+     * @notice Unlock VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      * @param beforeUnlockTime_ When `true` unlock before expiration and pays exit penalty
      */
-    // TODO: Would make sense to have deposit/withdraw, lock/unlock or stake/unstake naming instead?
-    function withdraw(uint256 tokenId_, bool beforeUnlockTime_) external override {
+    function unlock(uint256 tokenId_, bool beforeUnlockTime_) external override {
         _updateReward(_msgSender());
-        _withdraw(tokenId_, !beforeUnlockTime_);
+        _unlock(tokenId_, !beforeUnlockTime_);
         _kickAllExpiredOf(_msgSender());
+    }
+
+    /**
+     * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
+     * @param tokenId_ The id of the position (NFT)
+     * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
+     */
+    function _burn(uint256 tokenId_, bool onlyIfExpired_) internal {
+        LockPosition memory _position = positions[tokenId_];
+
+        if (onlyIfExpired_) {
+            require(block.timestamp > _position.unlockTime, "not-unlocked-yet");
+        }
+
+        uint256 _locked = _position.lockedAmount;
+        uint256 _boosted = _position.boostedAmount;
+        address _account = esVSP721.ownerOf(tokenId_);
+
+        esVSP721.burn(tokenId_);
+        delete positions[tokenId_];
+
+        locked[_account] -= _locked;
+        totalLocked -= _locked;
+        boosted[_account] -= _boosted;
+        totalBoosted -= _boosted;
+
+        uint256 _toTransfer = _locked;
+
+        if (block.timestamp <= _position.unlockTime) {
+            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
+            uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
+            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
+            _toTransfer -= _penalty;
+        }
+
+        VSP.safeTransfer(_account, _toTransfer);
     }
 
     /**
@@ -136,7 +171,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
         for (uint256 i = 0; i < _len; ++i) {
             uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
-            if (block.timestamp > stakeData[_tokenId].unlockTime) {
+            if (block.timestamp > positions[_tokenId].unlockTime) {
                 _toKick[i] = _tokenId;
             }
         }
@@ -154,7 +189,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      */
     function _kick(uint256 tokenId_) internal {
-        _unlock(tokenId_, true);
+        _burn(tokenId_, true);
 
         emit PositionKicked(tokenId_);
     }
@@ -183,7 +218,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
         uint256 _tokenId = esVSP721.mint(account_);
-        stakeData[_tokenId] = StakeData({
+        positions[_tokenId] = LockPosition({
             lockedAmount: _lockedAmount,
             boostedAmount: _boostedAmount,
             unlockTime: block.timestamp + lockPeriod_
@@ -193,39 +228,16 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     }
 
     /**
-     * @notice Burn given position and transfer locked amount to the owner (charges penalty if aplicable)
-     * @param tokenId_ The id of the position (NFT)
-     * @param onlyIfExpired_ When `true` revert if did't reach unlockTime
+     * @notice Unlock VSP by burning given ERC721 tokenId_
+     * @param tokenId_ ERC721 tokenId
      */
     function _unlock(uint256 tokenId_, bool onlyIfExpired_) internal {
-        StakeData memory _stakeData = stakeData[tokenId_];
-
-        if (onlyIfExpired_) {
-            require(block.timestamp > _stakeData.unlockTime, "not-unlocked-yet");
-        }
-
-        uint256 _locked = _stakeData.lockedAmount;
-        uint256 _boosted = _stakeData.boostedAmount;
         address _account = esVSP721.ownerOf(tokenId_);
+        require(_msgSender() == _account, "not-position-owner");
 
-        esVSP721.burn(tokenId_);
-        delete stakeData[tokenId_];
+        _burn(tokenId_, onlyIfExpired_);
 
-        locked[_account] -= _locked;
-        totalLocked -= _locked;
-        boosted[_account] -= _boosted;
-        totalBoosted -= _boosted;
-
-        uint256 _toTransfer = _locked;
-
-        if (block.timestamp <= _stakeData.unlockTime) {
-            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
-            uint256 _progress = ((_stakeData.unlockTime - block.timestamp) * 1e18) / _lockPeriod;
-            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
-            _toTransfer -= _penalty;
-        }
-
-        VSP.safeTransfer(_account, _toTransfer);
+        emit VspUnlocked(tokenId_);
     }
 
     /**
@@ -236,19 +248,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         if (address(rewards) != address(0)) {
             rewards.updateReward(account_);
         }
-    }
-
-    /**
-     * @notice Withdraw VSP by burning given ERC721 tokenId_
-     * @param tokenId_ ERC721 tokenId
-     */
-    function _withdraw(uint256 tokenId_, bool onlyIfExpired_) internal {
-        address _account = esVSP721.ownerOf(tokenId_);
-        require(_msgSender() == _account, "not-position-owner");
-
-        _unlock(tokenId_, onlyIfExpired_);
-
-        emit VspWithdrawn(tokenId_);
     }
 
     /** Governance methods **/
