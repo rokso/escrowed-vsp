@@ -17,6 +17,11 @@ abstract contract ESVSPStorageV1 is IESVSP {
     string public symbol;
 
     /**
+     * @notice The treasury contract (will receive exit penalty collected)
+     */
+    address public treasury;
+
+    /**
      * @notice NFT contract
      */
     IESVSP721 public esVSP721;

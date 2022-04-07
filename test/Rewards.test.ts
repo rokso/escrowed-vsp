@@ -32,6 +32,7 @@ import {
 describe('Rewards', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
+  let treasury: SignerWithAddress
   let governor: SignerWithAddress
   let distributor: SignerWithAddress
   let alice: SignerWithAddress
@@ -47,7 +48,7 @@ describe('Rewards', function () {
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, governor, distributor, alice, bob, carl] = await ethers.getSigners()
+    ;[deployer, governor, treasury, distributor, alice, bob, carl] = await ethers.getSigners()
 
     const {
       ESVSP: {address: esVSPAddress},

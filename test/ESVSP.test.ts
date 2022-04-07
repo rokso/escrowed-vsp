@@ -32,6 +32,7 @@ describe('ESVSP', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
   let governor: SignerWithAddress
+  let treasury: SignerWithAddress
   let distributor: SignerWithAddress
   let alice: SignerWithAddress
   let bob: SignerWithAddress
@@ -45,7 +46,7 @@ describe('ESVSP', function () {
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, governor, distributor, alice, bob, carl] = await ethers.getSigners()
+    ;[deployer, governor, treasury, distributor, alice, bob, carl] = await ethers.getSigners()
 
     const esVspFactory = new ESVSP__factory(deployer)
     esVsp = await esVspFactory.deploy()
@@ -56,7 +57,7 @@ describe('ESVSP', function () {
     await esVsp721.deployed()
     await esVsp721.setESVSP(esVsp.address)
 
-    await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address)
+    await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address, treasury.address)
     await esVsp.transferGovernorship(governor.address)
     await esVsp.connect(governor).acceptGovernorship()
 
@@ -218,26 +219,31 @@ describe('ESVSP', function () {
       await esVsp.connect(bob).lock(amount, period)
       await esVsp.connect(carl).lock(amount, period)
 
+      const treasuryBefore = await vsp.balanceOf(treasury.address)
       const aliceBefore = await vsp.balanceOf(alice.address)
       const bobBefore = await vsp.balanceOf(bob.address)
       const carlBefore = await vsp.balanceOf(carl.address)
 
-      // when
+      // when-then
       const beforeUnlockTime = true
 
       await esVsp.unlock(1, beforeUnlockTime)
-      // just after deposit: full penalty
+      // just after deposit: full penalty (50 VSP)
       expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('0.001'))
 
       await increaseTime(YEAR.div(2))
       await esVsp.connect(bob).unlock(2, beforeUnlockTime)
-      // 6mo layer: half penalty
+      // 6mo layer: half penalty (25 VSP)
       expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('0.001'))
 
       await increaseTime(YEAR.div(2))
       await esVsp.connect(carl).unlock(3, beforeUnlockTime)
       // 1y later: no penalty
       expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('0.001'))
+
+      const treasuryAfter = await vsp.balanceOf(treasury.address)
+      const penaltyCollected = parseEther('50').add(parseEther('25'))
+      expect(treasuryAfter).closeTo(treasuryBefore.add(penaltyCollected), parseEther('0.001'))
     })
 
     it('should unlock all locked amount after lock period', async function () {

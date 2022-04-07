@@ -13,6 +13,8 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   const esVSP721 = await get(ESVSP721)
 
+  const treasuryAddress = process.env.TREASURY || deployer
+
   const esVSP = await deploy(ESVSP, {
     from: deployer,
     log: true,
@@ -21,7 +23,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
       execute: {
         init: {
           methodName: 'initialize',
-          args: ['VSP Escrow', 'esVSP', 18, esVSP721.address],
+          args: ['VSP Escrow', 'esVSP', 18, esVSP721.address, treasuryAddress],
         },
       },
     },

@@ -25,9 +25,11 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         string memory name_,
         string memory symbol_,
         uint8 decimals_,
-        IESVSP721 esVSP721_
+        IESVSP721 esVSP721_,
+        address treasury_
     ) public initializer {
         require(address(esVSP721_) != address(0), "esVSP721-is-null");
+        require(treasury_ != address(0), "treasury-is-null");
 
         __Governable_init();
 
@@ -36,6 +38,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         decimals = decimals_;
         esVSP721 = esVSP721_;
         exitPenalty = 0.5e18; // 50%;
+        treasury = treasury_;
     }
 
     /**
@@ -141,8 +144,10 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         LockPosition memory _position = positions[tokenId_];
         uint256 _unlockTime = _position.unlockTime;
 
+        bool _isExpired = block.timestamp > _position.unlockTime;
+
         if (onlyIfExpired_) {
-            require(block.timestamp > _unlockTime, "not-unlocked-yet");
+            require(_isExpired, "not-unlocked-yet");
         }
 
         uint256 _locked = _position.lockedAmount;
@@ -158,11 +163,14 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
         uint256 _toTransfer = _locked;
 
-        if (block.timestamp <= _unlockTime) {
+        if (!_isExpired && exitPenalty > 0) {
             uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
             uint256 _progress = ((_unlockTime - block.timestamp) * 1e18) / _lockPeriod;
             uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
-            _toTransfer -= _penalty;
+            if (_penalty > 0) {
+                VSP.safeTransfer(treasury, _penalty);
+                _toTransfer -= _penalty;
+            }
         }
 
         VSP.safeTransfer(_account, _toTransfer);
@@ -283,6 +291,17 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         require(exitPenalty_ != exitPenalty, "fee-is-same-as-current");
         emit ExitPenaltyUpdated(exitPenalty, exitPenalty_);
         exitPenalty = exitPenalty_;
+    }
+
+    /**
+     * @notice Update treasury contract
+     * @param treasury_ The new treasury address
+     */
+    function updateTreasury(address treasury_) external onlyGovernor {
+        require(treasury_ != address(0), "addressis-null");
+        require(treasury_ != treasury, "address-is-same-as-current");
+        emit TreasuryUpdated(treasury, treasury_);
+        treasury = treasury_;
     }
 
     /** Methods not supported **/

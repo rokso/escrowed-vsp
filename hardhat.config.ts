@@ -15,6 +15,8 @@ dotenv.config()
 
 const localhost = 'http://localhost'
 
+const accounts = process.env.MNEMONIC ? {mnemonic: process.env.MNEMONIC} : undefined
+
 const config: HardhatUserConfig = {
   defaultNetwork: 'hardhat',
   networks: {
@@ -31,6 +33,7 @@ const config: HardhatUserConfig = {
       url: process.env.NODE_URL,
       chainId: 1,
       gas: 6700000,
+      accounts,
     },
   },
   paths: {

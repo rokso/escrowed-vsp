@@ -13,10 +13,12 @@ interface IESVSP is IERC20, IERC20Metadata {
     event VspUnlocked(uint256 tokenId);
     /// Emitted when a position is kicked (i.e. when expired)
     event PositionKicked(uint256 tokenId);
-    // Emitted when the exit penalty is updated
+    /// Emitted when the exit penalty is updated
     event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
-    // Emitted when the exit penalty is updated
+    /// Emitted when the exit penalty is updated
     event RewardsUpdated(IRewards oldRewards, IRewards newRewards);
+    /// Emitted when the treasury address is updated
+    event TreasuryUpdated(address oldTreasury, address newTreasury);
 
     function totalLocked() external view returns (uint256);
 
