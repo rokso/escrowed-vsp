@@ -43,15 +43,10 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 _totalSupply;
         uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
-            if (rewards[rewardTokens[i]].isBoosted) {
-                _totalSupply = esVSP.totalBoosted();
-                _userBalance = esVSP.boosted(account_);
-            } else {
-                _totalSupply = esVSP.totalLocked();
-                _userBalance = esVSP.locked(account_);
-            }
-            _rewardTokens[i] = rewardTokens[i];
-            _claimableAmounts[i] = _claimable(rewardTokens[i], account_, _totalSupply, _userBalance);
+            address _rewardToken = rewardTokens[i];
+            (_totalSupply, _userBalance) = _getSupplyAndBalance(_rewardToken, account_);
+            _rewardTokens[i] = _rewardToken;
+            _claimableAmounts[i] = _claimable(_rewardToken, account_, _totalSupply, _userBalance);
         }
     }
 
@@ -62,22 +57,19 @@ contract Rewards is Governable, RewardsStorageV1 {
      */
     function claimRewards(address account_) external override {
         uint256 _len = rewardTokens.length;
+
         uint256 _totalSupply;
         uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
             address _rewardToken = rewardTokens[i];
-            if (rewards[_rewardToken].isBoosted) {
-                _totalSupply = esVSP.totalBoosted();
-                _userBalance = esVSP.boosted(account_);
-            } else {
-                _totalSupply = esVSP.totalLocked();
-                _userBalance = esVSP.locked(account_);
-            }
+            (_totalSupply, _userBalance) = _getSupplyAndBalance(_rewardToken, account_);
+
             _updateReward(_rewardToken, account_, _totalSupply, _userBalance);
-            // Claim rewards
-            uint256 _reward = rewardOf[_rewardToken][account_].claimableRewardsStored;
-            _claimReward(_rewardToken, account_, _reward);
-            emit RewardPaid(account_, _rewardToken, _reward);
+
+            uint256 _rewardAmount = rewardOf[_rewardToken][account_].claimableRewardsStored;
+            if (_rewardAmount > 0) {
+                _claimReward(_rewardToken, account_, _rewardAmount);
+            }
         }
         esVSP.kickAllExpiredOf(account_);
     }
@@ -111,17 +103,13 @@ contract Rewards is Governable, RewardsStorageV1 {
      */
     function updateReward(address account_) public {
         uint256 _len = rewardTokens.length;
+
         uint256 _totalSupply;
         uint256 _userBalance;
         for (uint256 i = 0; i < _len; i++) {
-            if (rewards[rewardTokens[i]].isBoosted) {
-                _totalSupply = esVSP.totalBoosted();
-                _userBalance = esVSP.boosted(account_);
-            } else {
-                _totalSupply = esVSP.totalLocked();
-                _userBalance = esVSP.locked(account_);
-            }
-            _updateReward(rewardTokens[i], account_, _totalSupply, _userBalance);
+            address _rewardToken = rewardTokens[i];
+            (_totalSupply, _userBalance) = _getSupplyAndBalance(_rewardToken, account_);
+            _updateReward(_rewardToken, account_, _totalSupply, _userBalance);
         }
     }
 
@@ -156,9 +144,9 @@ contract Rewards is Governable, RewardsStorageV1 {
         address account_,
         uint256 reward_
     ) internal virtual {
-        UserReward storage _userReward = rewardOf[rewardToken_][account_];
-        _userReward.claimableRewardsStored = 0;
+        rewardOf[rewardToken_][account_].claimableRewardsStored = 0;
         IERC20(rewardToken_).safeTransfer(account_, reward_);
+        emit RewardPaid(account_, rewardToken_, reward_);
     }
 
     /**
@@ -168,22 +156,43 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardAmount_  Reward amount
      */
     function _dripRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
-        IERC20(rewardToken_).transferFrom(_msgSender(), address(this), rewardAmount_);
+        uint256 _balanceBefore = IERC20(rewardToken_).balanceOf(address(this));
+        IERC20(rewardToken_).safeTransferFrom(_msgSender(), address(this), rewardAmount_);
+        uint256 _dripAmount = IERC20(rewardToken_).balanceOf(address(this)) - _balanceBefore;
+
         Reward storage _reward = rewards[rewardToken_];
         uint256 _totalSupply = _reward.isBoosted ? esVSP.totalBoosted() : esVSP.totalLocked();
         _reward.rewardPerTokenStored = _rewardPerToken(rewardToken_, _totalSupply);
+
         if (block.timestamp >= _reward.periodFinish) {
-            _reward.rewardPerSecond = rewardAmount_ / REWARD_DURATION;
+            _reward.rewardPerSecond = _dripAmount / REWARD_DURATION;
         } else {
             uint256 _remainingPeriod = _reward.periodFinish - block.timestamp;
             uint256 _leftover = _remainingPeriod * _reward.rewardPerSecond;
-            _reward.rewardPerSecond = (rewardAmount_ + _leftover) / REWARD_DURATION;
+            _reward.rewardPerSecond = (_dripAmount + _leftover) / REWARD_DURATION;
         }
 
         // Start new drip time
         _reward.lastUpdateTime = block.timestamp;
         _reward.periodFinish = block.timestamp + REWARD_DURATION;
-        emit RewardAdded(rewardToken_, rewardAmount_, REWARD_DURATION);
+        emit RewardAdded(rewardToken_, _dripAmount, REWARD_DURATION);
+    }
+
+    /**
+     * @notice Get supply and balance for reference (i.e. locked or boosted)
+     */
+    function _getSupplyAndBalance(address rewardToken_, address account_)
+        private
+        view
+        returns (uint256 _totalSupply, uint256 _userBalance)
+    {
+        if (rewards[rewardToken_].isBoosted) {
+            _totalSupply = esVSP.totalBoosted();
+            _userBalance = esVSP.boosted(account_);
+        } else {
+            _totalSupply = esVSP.totalLocked();
+            _userBalance = esVSP.locked(account_);
+        }
     }
 
     /**
@@ -217,13 +226,14 @@ contract Rewards is Governable, RewardsStorageV1 {
         uint256 balance_
     ) internal {
         uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
-        Reward storage _rewardData = rewards[rewardToken_];
-        _rewardData.rewardPerTokenStored = _rewardPerTokenStored;
-        _rewardData.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
+        Reward storage _reward = rewards[rewardToken_];
+        _reward.rewardPerTokenStored = _rewardPerTokenStored;
+        _reward.lastUpdateTime = lastTimeRewardApplicable(rewardToken_);
         if (account_ != address(0)) {
-            UserReward storage _userReward = rewardOf[rewardToken_][account_];
-            _userReward.claimableRewardsStored = _claimable(rewardToken_, account_, totalSupply_, balance_).toUint128();
-            _userReward.rewardPerTokenPaid = _rewardPerTokenStored.toUint128();
+            rewardOf[rewardToken_][account_] = UserReward({
+                claimableRewardsStored: _claimable(rewardToken_, account_, totalSupply_, balance_).toUint128(),
+                rewardPerTokenPaid: _rewardPerTokenStored.toUint128()
+            });
         }
     }
 
