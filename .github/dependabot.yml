@@ -5,4 +5,6 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 20
-    update-types: ["version-update:semver-minor"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor"]
