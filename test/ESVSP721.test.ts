@@ -11,6 +11,7 @@ chai.use(smock.matchers)
 describe('ESVSP721', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
+  let governor: SignerWithAddress
   let alice: SignerWithAddress
   let bob: SignerWithAddress
   let esVsp721: ESVSP721
@@ -19,14 +20,17 @@ describe('ESVSP721', function () {
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, alice, bob] = await ethers.getSigners()
+    ;[deployer, governor, alice, bob] = await ethers.getSigners()
 
     esVspMock = await smock.fake('ESVSP')
     await setEtherBalance(esVspMock.address, parseEther('10'))
 
     const esVsp721Factory = new ESVSP721__factory(deployer)
-    esVsp721 = await esVsp721Factory.deploy(esVspMock.address, 'VSP Escrow NFT', 'esVSP-NFT')
+    esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
     await esVsp721.deployed()
+    await esVsp721.setESVSP(esVspMock.address)
+    await esVsp721.transferGovernorship(governor.address)
+    await esVsp721.connect(governor).acceptGovernorship()
 
     esVsp721 = esVsp721.connect(esVspMock.wallet)
   })
@@ -105,6 +109,24 @@ describe('ESVSP721', function () {
         // then
         expect(esVspMock.transferPosition).to.have.been.calledWith(tokenId, bob.address)
       })
+    })
+  })
+
+  describe('setBaseTokenURI', function () {
+    const tokenId = 1
+
+    beforeEach(async function () {
+      await esVsp721.mint(alice.address)
+    })
+
+    it('should get full token URI', async function () {
+      // when
+      const baseURI = 'https://vesper.finance/esVSP721/'
+      await esVsp721.connect(governor).setBaseTokenURI(baseURI)
+
+      // then
+      const uri = await esVsp721.tokenURI(tokenId)
+      expect(uri).eq(`${baseURI}${tokenId}`)
     })
   })
 })

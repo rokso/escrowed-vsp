@@ -3,7 +3,7 @@
 import {parseEther, parseUnits} from '@ethersproject/units'
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {expect} from 'chai'
-import {ethers} from 'hardhat'
+import {ethers, deployments} from 'hardhat'
 import {
   ESVSP,
   ESVSP721,
@@ -32,6 +32,7 @@ import {
 describe('Rewards', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
+  let treasury: SignerWithAddress
   let governor: SignerWithAddress
   let distributor: SignerWithAddress
   let alice: SignerWithAddress
@@ -47,29 +48,23 @@ describe('Rewards', function () {
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, governor, distributor, alice, bob, carl] = await ethers.getSigners()
+    ;[deployer, governor, treasury, distributor, alice, bob, carl] = await ethers.getSigners()
 
-    const esVspFactory = new ESVSP__factory(deployer)
-    esVsp = await esVspFactory.deploy()
-    await esVsp.deployed()
+    const {
+      ESVSP: {address: esVSPAddress},
+      ESVSP721: {address: esVSP721Address},
+      Rewards: {address: rewardsAddress},
+    } = await deployments.fixture()
 
-    const rewardsFactory = new Rewards__factory(deployer)
-    rewards = await rewardsFactory.deploy()
-    await rewards.deployed()
+    esVsp = ESVSP__factory.connect(esVSPAddress, deployer)
+    esVsp721 = ESVSP721__factory.connect(esVSP721Address, deployer)
+    rewards = Rewards__factory.connect(rewardsAddress, deployer)
 
-    const esVsp721Factory = new ESVSP721__factory(deployer)
-    esVsp721 = await esVsp721Factory.deploy(esVsp.address, 'VSP Escrow NFT', 'esVSP-NFT')
-    await esVsp721.deployed()
-
-    await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address)
     await esVsp.transferGovernorship(governor.address)
     await esVsp.connect(governor).acceptGovernorship()
 
-    await rewards.initialize(esVsp.address)
     await rewards.transferGovernorship(governor.address)
     await rewards.connect(governor).acceptGovernorship()
-
-    await esVsp.connect(governor).setRewards(rewards.address)
 
     vsp = IERC20__factory.connect(VSP_ADDRESS, alice)
     rewards = rewards.connect(alice)

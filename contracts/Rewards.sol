@@ -21,6 +21,8 @@ contract Rewards is Governable, RewardsStorageV1 {
     function initialize(IESVSP esVSP_) public initializer {
         require(address(esVSP_) != address(0), "esVSP-is-null");
 
+        __Governable_init();
+
         esVSP = esVSP_;
     }
 
