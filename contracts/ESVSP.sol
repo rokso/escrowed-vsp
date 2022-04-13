@@ -3,8 +3,6 @@
 pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./access/Governable.sol";
 import "./storage/ESVSPStorage.sol";
 
@@ -13,7 +11,6 @@ import "./storage/ESVSPStorage.sol";
  */
 contract ESVSP is Governable, ESVSPStorageV1 {
     using SafeERC20 for IERC20;
-    using SafeCast for uint256;
 
     string public constant VERSION = "1.0.0";
     IERC20 public constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
