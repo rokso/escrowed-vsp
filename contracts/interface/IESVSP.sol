@@ -30,6 +30,12 @@ interface IESVSP is IERC20, IERC20Metadata {
 
     function lock(uint256 amount_, uint256 lockPeriod_) external;
 
+    function lockFor(
+        address to_,
+        uint256 amount_,
+        uint256 lockPeriod_
+    ) external;
+
     function updateExitPenalty(uint256 exitPenalty_) external;
 
     function unlock(uint256 tokenId_, bool unexpired_) external;
