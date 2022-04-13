@@ -1,19 +1,16 @@
+import {ethers} from 'hardhat'
+import {BigNumber} from 'ethers'
+import Address from '../../helpers/address'
 
-
-import Address from './address'
-import {ethers,} from 'hardhat'
-import { BigNumber } from 'ethers'
-const { hexlify, solidityKeccak256, zeroPad, getAddress, hexStripZeros } = ethers.utils
+const {hexlify, solidityKeccak256, zeroPad, getAddress, hexStripZeros} = ethers.utils
 
 // Slot number mapping for a token. Prepared using utility https://github.com/kendricktan/slot20
 const slots = {
-  [Address.DAI]: 2,
-  [Address.WETH]: 3,
-  [Address.USDC]: 9,
-  [Address.USDT]: 2,
-  [Address.WBTC]: 0,
-  [Address.LINK]: 1,
-  [Address.VSP]: 0,
+  [Address.DAI_ADDRESS]: 2,
+  [Address.WETH_ADDRESS]: 3,
+  [Address.USDC_ADDRESS]: 9,
+  [Address.WBTC_ADDRESS]: 0,
+  [Address.VSP_ADDRESS]: 0,
 }
 
 /**
@@ -22,8 +19,7 @@ const slots = {
  * @param {string} token  token address
  * @returns {number} slot number for provided token address
  */
-const getSlot = (token:string) => // only use checksum address
-  slots[getAddress(token)]
+const getSlot = (token: string) => slots[getAddress(token)]
 
 /**
  * Update token balance for a given target address
@@ -32,8 +28,7 @@ const getSlot = (token:string) => // only use checksum address
  * @param {string} targetAddress address at which token balance to be updated.
  * @param {BigNumber|string|number} balance balance amount to be set
  */
-
-async function adjustBalance(token:string, targetAddress:string, balance:BigNumber) {
+export const adjustBalance = async (token: string, targetAddress: string, balance: BigNumber): Promise<void> => {
   const slot = getSlot(token)
   if (slot === undefined) {
     throw new Error(`Missing slot configuration for token ${token}`)
@@ -49,5 +44,3 @@ async function adjustBalance(token:string, targetAddress:string, balance:BigNumb
   await ethers.provider.send('hardhat_setStorageAt', [token, index, value])
   await ethers.provider.send('evm_mine', [])
 }
-
-module.exports = { adjustBalance }

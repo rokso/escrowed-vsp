@@ -17,17 +17,17 @@ import {
 import {
   impersonateAccount,
   increaseTime,
-  VSP_ADDRESS,
   VSP_HOLDER,
   YEAR,
-  USDC_ADDRESS,
-  WETH_ADDRESS,
   timestampFromLatestBlock,
   WETH_HOLDER,
   DAY,
   MONTH,
   USDC_HOLDER,
 } from './helpers'
+import Address from '../helpers/address'
+
+const {VSP_ADDRESS, USDC_ADDRESS, WETH_ADDRESS} = Address
 
 describe('Rewards', function () {
   let snapshotId: string

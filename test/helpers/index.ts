@@ -3,11 +3,8 @@ import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {parseEther} from 'ethers/lib/utils'
 import {ethers, network} from 'hardhat'
 
-export const VSP_ADDRESS = '0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421'
 export const VSP_HOLDER = '0xba4cfe5741b357fa371b506e5db0774abfecf8fc'
-export const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 export const WETH_HOLDER = '0x2f0b23f53734252bda2277357e97e1517d6b042a'
-export const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 export const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
 
 export const MINUTE = BigNumber.from(60)
