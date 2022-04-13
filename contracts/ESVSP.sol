@@ -75,9 +75,25 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param lockPeriod_ The lock period
      */
     function lock(uint256 amount_, uint256 lockPeriod_) external override {
-        _updateReward(_msgSender());
-        _kickAllExpiredOf(_msgSender());
-        _lock(amount_, lockPeriod_);
+        address _to = _msgSender();
+        _updateReward(_to);
+        _kickAllExpiredOf(_to);
+        _lock(_to, amount_, lockPeriod_);
+    }
+
+    /**
+     * @notice Lock VSP to get boosted revenue and voting power. Lock VSP and generate users position by minting ERC721
+     * @param amount_ The VSP amount to lock
+     * @param lockPeriod_ The lock period
+     */
+    function lockFor(
+        address to_,
+        uint256 amount_,
+        uint256 lockPeriod_
+    ) external override {
+        _updateReward(to_);
+        _kickAllExpiredOf(to_);
+        _lock(to_, amount_, lockPeriod_);
     }
 
     /**
@@ -216,12 +232,14 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param amount_ The VSP amount to lock
      * @param lockPeriod_ The lock period
      */
-    function _lock(uint256 amount_, uint256 lockPeriod_) internal {
+    function _lock(
+        address account_,
+        uint256 amount_,
+        uint256 lockPeriod_
+    ) internal {
         require(amount_ > 0, "amount-is-zero");
         require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
         require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
-
-        address account_ = _msgSender();
 
         uint256 balanceBefore_ = VSP.balanceOf(address(this));
         VSP.safeTransferFrom(account_, address(this), amount_);
