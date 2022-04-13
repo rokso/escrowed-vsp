@@ -9,7 +9,7 @@ abstract contract RewardsStorageV1 is IRewards {
     struct Reward {
         bool isBoosted; // linear distribution if false
         uint256 periodFinish; // end of a drip period
-        uint256 rewardPerSecond; // distribuition per second (i.e. dripAmount/dripPeriod)
+        uint256 rewardPerSecond; // distribution per second (i.e. dripAmount/dripPeriod)
         uint256 lastUpdateTime; // stores last drip time
         uint256 rewardPerTokenStored; // reward per VSP
     }

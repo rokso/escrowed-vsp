@@ -130,7 +130,7 @@ contract Rewards is Governable, RewardsStorageV1 {
 
     /**
      * @notice Get claimable rewards for a reward token
-     * @param rewardToken_ The addres of the reward token
+     * @param rewardToken_ The address of the reward token
      * @param account_ The account
      * @param totalSupply_ The supply of reference (boosted or locked)
      * @param balance_ The balance of reference (boosted or locked)
@@ -229,7 +229,7 @@ contract Rewards is Governable, RewardsStorageV1 {
 
     /**
      * @notice Update reward earning of user
-     * @param rewardToken_ The addres of the reward token
+     * @param rewardToken_ The address of the reward token
      * @param account_ The account
      * @param totalSupply_ The supply of reference (boosted or locked)
      * @param balance_ The balance of reference (boosted or locked)
