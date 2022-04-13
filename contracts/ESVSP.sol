@@ -45,7 +45,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         uint8 decimals_,
         IESVSP721 esVSP721_,
         address treasury_
-    ) public initializer {
+    ) external initializer {
         require(address(esVSP721_) != address(0), "esVSP721-is-null");
         require(treasury_ != address(0), "treasury-is-null");
 
@@ -65,7 +65,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param account_ The account
      * @return user's boost VSP balance. Boost VSP > locked VSP
      */
-    function balanceOf(address account_) public view override returns (uint256) {
+    function balanceOf(address account_) external view override returns (uint256) {
         return boosted[account_];
     }
 
@@ -104,14 +104,14 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param account_ The account
      * @return user's locked VSP balance
      */
-    function lockedBalanceOf(address account_) public view virtual override returns (uint256) {
+    function lockedBalanceOf(address account_) external view override returns (uint256) {
         return locked[account_];
     }
 
     /**
      * @notice Total boosted amount
      */
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() external view override returns (uint256) {
         return totalBoosted;
     }
 
@@ -121,7 +121,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ The position (NFT) to transfer
      * @param to_ The recipient
      */
-    function transferPosition(uint256 tokenId_, address to_) external {
+    function transferPosition(uint256 tokenId_, address to_) external override {
         require(_msgSender() == address(esVSP721), "not-esvsp721");
         address _from = esVSP721.ownerOf(tokenId_);
 
@@ -159,7 +159,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         uint256 tokenId_,
         bool onlyIfExpired_,
         bool onlyIfOwner_
-    ) internal {
+    ) private {
         address _account = esVSP721.ownerOf(tokenId_);
         LockPosition memory _position = positions[tokenId_];
         uint256 _unlockTime = _position.unlockTime;
@@ -204,7 +204,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Kick all expired positions of a user
      * @param account_ The target account
      */
-    function _kickAllExpiredOf(address account_) internal {
+    function _kickAllExpiredOf(address account_) private {
         uint256 _len = esVSP721.balanceOf(account_);
         uint256[] memory _toKick = new uint256[](_len);
 
@@ -227,7 +227,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Burn an expired position and send locked amount to the owner
      * @param tokenId_ ERC721 tokenId
      */
-    function _kick(uint256 tokenId_) internal {
+    function _kick(uint256 tokenId_) private {
         _burn(tokenId_, true, false);
 
         emit PositionKicked(tokenId_);
@@ -238,7 +238,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param amount_ The VSP amount to lock
      * @param lockPeriod_ The lock period
      */
-    function _lock(uint256 amount_, uint256 lockPeriod_) internal {
+    function _lock(uint256 amount_, uint256 lockPeriod_) private {
         require(amount_ > 0, "amount-is-zero");
         require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
         require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
@@ -271,7 +271,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Unlock VSP by burning given ERC721 tokenId_
      * @param tokenId_ ERC721 tokenId
      */
-    function _unlock(uint256 tokenId_, bool onlyIfExpired_) internal {
+    function _unlock(uint256 tokenId_, bool onlyIfExpired_) private {
         _burn(tokenId_, onlyIfExpired_, true);
 
         emit VspUnlocked(tokenId_);

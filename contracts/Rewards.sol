@@ -30,7 +30,7 @@ contract Rewards is Governable, RewardsStorageV1 {
     /// Emitted when distributor approval is updated
     event RewardDistributorApprovalUpdated(address rewardsToken, address distributor, bool approved);
 
-    function initialize(IESVSP esVSP_) public initializer {
+    function initialize(IESVSP esVSP_) external initializer {
         require(address(esVSP_) != address(0), "esVSP-is-null");
 
         __Governable_init();
@@ -47,6 +47,7 @@ contract Rewards is Governable, RewardsStorageV1 {
     function claimableRewards(address account_)
         external
         view
+        override
         returns (address[] memory _rewardTokens, uint256[] memory _claimableAmounts)
     {
         uint256 _len = rewardTokens.length;
@@ -107,7 +108,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param _rewardToken The reward token
      * @return The timestamp
      */
-    function lastTimeRewardApplicable(address _rewardToken) public view returns (uint256) {
+    function lastTimeRewardApplicable(address _rewardToken) public view override returns (uint256) {
         return Math.min(block.timestamp, rewards[_rewardToken].periodFinish);
     }
 
@@ -115,7 +116,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @notice Update reward earning of user
      * @param account_ The account
      */
-    function updateReward(address account_) public {
+    function updateReward(address account_) public override {
         uint256 _len = rewardTokens.length;
 
         uint256 _totalSupply;
@@ -140,7 +141,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         address account_,
         uint256 totalSupply_,
         uint256 balance_
-    ) internal view returns (uint256) {
+    ) private view returns (uint256) {
         UserReward memory _userReward = rewardOf[rewardToken_][account_];
         uint256 _rewardPerTokenAvailable = _rewardPerToken(rewardToken_, totalSupply_) - _userReward.rewardPerTokenPaid;
         uint256 _rewardsEarnedSinceLastUpdate = (balance_ * _rewardPerTokenAvailable) / 1e18;
@@ -157,7 +158,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         address rewardToken_,
         address account_,
         uint256 reward_
-    ) internal virtual {
+    ) private {
         rewardOf[rewardToken_][account_].claimableRewardsStored = 0;
         IERC20(rewardToken_).safeTransfer(account_, reward_);
         emit RewardPaid(account_, rewardToken_, reward_);
@@ -169,7 +170,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param rewardToken_ Reward token address
      * @param rewardAmount_  Reward amount
      */
-    function _dripRewardAmount(address rewardToken_, uint256 rewardAmount_) internal {
+    function _dripRewardAmount(address rewardToken_, uint256 rewardAmount_) private {
         uint256 _balanceBefore = IERC20(rewardToken_).balanceOf(address(this));
         IERC20(rewardToken_).safeTransferFrom(_msgSender(), address(this), rewardAmount_);
         uint256 _dripAmount = IERC20(rewardToken_).balanceOf(address(this)) - _balanceBefore;
@@ -215,7 +216,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @param totalSupply_ The supply of reference (boosted or locked)
      * @return The reward per VSP
      */
-    function _rewardPerToken(address rewardToken_, uint256 totalSupply_) internal view returns (uint256) {
+    function _rewardPerToken(address rewardToken_, uint256 totalSupply_) private view returns (uint256) {
         if (totalSupply_ == 0) {
             return rewards[rewardToken_].rewardPerTokenStored;
         }
@@ -238,7 +239,7 @@ contract Rewards is Governable, RewardsStorageV1 {
         address account_,
         uint256 totalSupply_,
         uint256 balance_
-    ) internal {
+    ) private {
         uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
         Reward storage _reward = rewards[rewardToken_];
         _reward.rewardPerTokenStored = _rewardPerTokenStored;
