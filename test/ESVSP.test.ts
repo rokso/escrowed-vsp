@@ -173,6 +173,56 @@ describe('ESVSP', function () {
     })
   })
 
+  describe('lockFor', function () {
+    it('should lock VSP on behalf', async function () {
+      //
+      // given
+      //
+      const esVspBalanceBefore = await vsp.balanceOf(esVsp.address)
+
+      //
+      // when
+      //
+      const to = bob.address
+      const amount = parseEther('100')
+      const period = YEAR
+      const tx = esVsp.lockFor(to, amount, period)
+
+      //
+      // then
+      //
+      const expectedTokenId = 1
+
+      // event
+      await expect(tx).emit(esVsp, 'VspLocked').withArgs(expectedTokenId, to, amount, period)
+
+      // data
+      const {lockedAmount} = await esVsp.positions(expectedTokenId)
+      expect(lockedAmount).eq(amount)
+
+      const locked = await esVsp.locked(to)
+      const totalLocked = await esVsp.totalLocked()
+      expect(locked).eq(totalLocked).eq(amount)
+
+      const boosted = await esVsp.boosted(to)
+      const totalBoosted = await esVsp.totalBoosted()
+      expect(boosted).eq(totalBoosted)
+
+      // VSP balance
+      const esVspBalanceAfter = await vsp.balanceOf(esVsp.address)
+      expect(esVspBalanceAfter.sub(esVspBalanceBefore)).eq(lockedAmount)
+
+      // nft
+      expect(await esVsp721.ownerOf(expectedTokenId)).eq(to)
+      expect(await esVsp721.balanceOf(to)).eq(1)
+
+      // erc20
+      expect(await esVsp.totalSupply()).eq(totalBoosted)
+      expect(await esVsp.balanceOf(to)).eq(boosted)
+      expect(await esVsp.lockedBalanceOf(to)).eq(locked)
+    })
+  })
+
   describe('unlock', function () {
     const amount = parseEther('100')
     const period = YEAR
