@@ -18,6 +18,18 @@ contract Rewards is Governable, RewardsStorageV1 {
     string public constant VERSION = "1.0.0";
     uint256 public constant REWARD_DURATION = 30 days;
 
+    /// Emitted after reward added
+    event RewardAdded(address indexed rewardToken, uint256 reward, uint256 rewardDuration);
+
+    /// Emitted whenever any user claim rewards
+    event RewardPaid(address indexed user, address indexed rewardToken, uint256 reward);
+
+    /// Emitted after adding new rewards token into rewardTokens array
+    event RewardTokenAdded(address indexed rewardToken, address[] existingRewardTokens);
+
+    /// Emitted when distributor approval is updated
+    event RewardDistributorApprovalUpdated(address rewardsToken, address distributor, bool approved);
+
     function initialize(IESVSP esVSP_) public initializer {
         require(address(esVSP_) != address(0), "esVSP-is-null");
 

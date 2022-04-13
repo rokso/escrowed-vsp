@@ -5,15 +5,6 @@ pragma solidity 0.8.9;
 import "../interface/IESVSP.sol";
 
 interface IRewards {
-    /// Emitted after reward added
-    event RewardAdded(address indexed rewardToken, uint256 reward, uint256 rewardDuration);
-    /// Emitted whenever any user claim rewards
-    event RewardPaid(address indexed user, address indexed rewardToken, uint256 reward);
-    /// Emitted after adding new rewards token into rewardTokens array
-    event RewardTokenAdded(address indexed rewardToken, address[] existingRewardTokens);
-    /// Emitted when distributor approval is updated
-    event RewardDistributorApprovalUpdated(address rewardsToken, address distributor, bool approved);
-
     function addRewardToken(
         address rewardsToken_,
         address distributor_,
