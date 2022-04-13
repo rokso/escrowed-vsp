@@ -26,7 +26,7 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @param tokenId_ The id of the token to burn
      */
     function burn(uint256 tokenId_) external override {
-        require(msg.sender == address(esVSP), "not-esvsp");
+        require(_msgSender() == address(esVSP), "not-esvsp");
         _burn(tokenId_);
     }
 
@@ -36,7 +36,7 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @param to_ The receiver account
      */
     function mint(address to_) external override returns (uint256 _tokenId) {
-        require(msg.sender == address(esVSP), "not-esvsp");
+        require(_msgSender() == address(esVSP), "not-esvsp");
         _tokenId = nextTokenId++;
         _mint(to_, _tokenId);
     }
