@@ -56,7 +56,7 @@ contract Rewards is Governable, RewardsStorageV1 {
 
         uint256 _totalSupply;
         uint256 _userBalance;
-        for (uint256 i = 0; i < _len; i++) {
+        for (uint256 i; i < _len; i++) {
             address _rewardToken = rewardTokens[i];
             (_totalSupply, _userBalance) = _getSupplyAndBalance(_rewardToken, account_);
             _rewardTokens[i] = _rewardToken;
@@ -74,7 +74,7 @@ contract Rewards is Governable, RewardsStorageV1 {
 
         uint256 _totalSupply;
         uint256 _userBalance;
-        for (uint256 i = 0; i < _len; i++) {
+        for (uint256 i; i < _len; i++) {
             address _rewardToken = rewardTokens[i];
             (_totalSupply, _userBalance) = _getSupplyAndBalance(_rewardToken, account_);
 
@@ -120,7 +120,7 @@ contract Rewards is Governable, RewardsStorageV1 {
 
         uint256 _totalSupply;
         uint256 _userBalance;
-        for (uint256 i = 0; i < _len; i++) {
+        for (uint256 i; i < _len; i++) {
             address _rewardToken = rewardTokens[i];
             (_totalSupply, _userBalance) = _getSupplyAndBalance(_rewardToken, account_);
             _updateReward(_rewardToken, account_, _totalSupply, _userBalance);

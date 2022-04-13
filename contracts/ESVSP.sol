@@ -208,14 +208,14 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         uint256 _len = esVSP721.balanceOf(account_);
         uint256[] memory _toKick = new uint256[](_len);
 
-        for (uint256 i = 0; i < _len; ++i) {
+        for (uint256 i; i < _len; ++i) {
             uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
             if (block.timestamp > positions[_tokenId].unlockTime) {
                 _toKick[i] = _tokenId;
             }
         }
 
-        for (uint256 i = 0; i < _len; ++i) {
+        for (uint256 i; i < _len; ++i) {
             uint256 _tokenId = _toKick[i];
             if (_tokenId > 0) {
                 _kick(_tokenId);
@@ -248,7 +248,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         uint256 balanceBefore_ = VSP.balanceOf(address(this));
         VSP.safeTransferFrom(account_, address(this), amount_);
         uint256 _lockedAmount = VSP.balanceOf(address(this)) - balanceBefore_;
-        require(_lockedAmount > 0, "nothing-to-lock");
 
         uint256 _boostedAmount = (_lockedAmount * lockPeriod_ * MAXIMUM_BOOST) / MAXIMUM_LOCK_PERIOD;
 
