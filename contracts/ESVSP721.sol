@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "./dependencies/@openzeppelin/token/ERC721/extensions/ERC721Enumerable.sol";
 import "./access/Governable.sol";
 import "./interface/IESVSP.sol";
 import "./interface/IESVSP721.sol";

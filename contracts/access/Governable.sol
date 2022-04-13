@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "../dependencies/@openzeppelin/utils/Context.sol";
+import "../dependencies/@openzeppelin/proxy/utils/Initializable.sol";
 import "../interface/IGovernable.sol";
 
 /**

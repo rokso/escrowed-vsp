@@ -2,9 +2,9 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
-import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import "./dependencies/@openzeppelin/utils/math/Math.sol";
+import "./dependencies/@openzeppelin/utils/math/SafeCast.sol";
 import "./access/Governable.sol";
 import "./storage/RewardsStorage.sol";
 
@@ -116,7 +116,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @notice Update reward earning of user
      * @param account_ The account
      */
-    function updateReward(address account_) public override {
+    function updateReward(address account_) external override {
         uint256 _len = rewardTokens.length;
 
         uint256 _totalSupply;
