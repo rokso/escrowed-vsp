@@ -21,11 +21,8 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     /// Emitted when a new position is created (i.e. when user locks VSP)
     event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
 
-    /// Emitted when a position is burned (i.e. when user withdraws VSP)
-    event VspUnlocked(uint256 tokenId);
-
-    /// Emitted when a position is kicked (i.e. when expired)
-    event PositionKicked(uint256 tokenId);
+    /// Emitted when a position is burned due to unlock or kick
+    event VspUnlocked(uint256 tokenId, uint256 amount, uint256 unlocked, uint256 penalty);
 
     /// Emitted when the exit penalty is updated
     event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
@@ -195,6 +192,8 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         }
 
         VSP.safeTransfer(_account, _toTransfer);
+
+        emit VspUnlocked(tokenId_, _locked, _toTransfer, _locked - _toTransfer);
     }
 
     /**
@@ -226,8 +225,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      */
     function _kick(uint256 tokenId_) private {
         _burn(tokenId_, true, false);
-
-        emit PositionKicked(tokenId_);
     }
 
     /**
@@ -270,8 +267,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      */
     function _unlock(uint256 tokenId_, bool onlyIfExpired_) private {
         _burn(tokenId_, onlyIfExpired_, true);
-
-        emit VspUnlocked(tokenId_);
     }
 
     /**

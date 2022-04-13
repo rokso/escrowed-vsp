@@ -249,7 +249,7 @@ describe('ESVSP', function () {
       const tx = esVsp.unlock(tokenId, beforeUnlockTime)
 
       // then
-      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId)
+      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, amount, amount, 0)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
@@ -357,7 +357,7 @@ describe('ESVSP', function () {
       const tx = esVsp.connect(bob).kick(tokenId)
 
       // then
-      await expect(tx).emit(esVsp, 'PositionKicked').withArgs(tokenId)
+      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, amount, amount, 0)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
