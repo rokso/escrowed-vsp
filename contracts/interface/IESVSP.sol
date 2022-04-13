@@ -2,11 +2,10 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./IRewards.sol";
 
-interface IESVSP is IERC20, IERC20Metadata {
+interface IESVSP is IERC20Metadata {
     function totalLocked() external view returns (uint256);
 
     function totalBoosted() external view returns (uint256);
