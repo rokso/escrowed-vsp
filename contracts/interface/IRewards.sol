@@ -2,8 +2,6 @@
 
 pragma solidity 0.8.9;
 
-import "../interface/IESVSP.sol";
-
 interface IRewards {
     function addRewardToken(
         address rewardsToken_,
