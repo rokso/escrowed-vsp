@@ -229,11 +229,12 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
     /**
      * @notice Lock VSP to get boosted revenue and voting power. Lock VSP and generate users position by minting ERC721
+     * @param to_ The beneficiary account
      * @param amount_ The VSP amount to lock
      * @param lockPeriod_ The lock period
      */
     function _lock(
-        address account_,
+        address to_,
         uint256 amount_,
         uint256 lockPeriod_
     ) internal {
@@ -242,18 +243,18 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
 
         uint256 balanceBefore_ = VSP.balanceOf(address(this));
-        VSP.safeTransferFrom(account_, address(this), amount_);
+        VSP.safeTransferFrom(_msgSender(), address(this), amount_);
         uint256 _lockedAmount = VSP.balanceOf(address(this)) - balanceBefore_;
         require(_lockedAmount > 0, "nothing-to-lock");
 
         uint256 _boostedAmount = (_lockedAmount * lockPeriod_ * MAXIMUM_BOOST) / MAXIMUM_LOCK_PERIOD;
 
-        locked[account_] += _lockedAmount;
-        boosted[account_] += _boostedAmount;
+        locked[to_] += _lockedAmount;
+        boosted[to_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
 
-        uint256 _tokenId = esVSP721.mint(account_);
+        uint256 _tokenId = esVSP721.mint(to_);
 
         positions[_tokenId] = LockPosition({
             lockedAmount: _lockedAmount,
@@ -261,7 +262,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
             unlockTime: block.timestamp + lockPeriod_
         });
 
-        emit VspLocked(_tokenId, account_, amount_, lockPeriod_);
+        emit VspLocked(_tokenId, to_, amount_, lockPeriod_);
     }
 
     /**
