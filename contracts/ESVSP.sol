@@ -163,20 +163,15 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Burn given position and transfer locked amount to the owner (charges penalty if applicable)
      * @param tokenId_ The id of the position (NFT)
      * @param onlyIfExpired_ When `true` revert if didn't reach unlockTime
-     * @param onlyIfOwner_ When `true` revert if `msg.sender` isn't the position (i.e. NFT) owner
+     * @param _account The account to burn position from
      */
     function _burn(
         uint256 tokenId_,
         bool onlyIfExpired_,
-        bool onlyIfOwner_
+        address _account
     ) private {
-        address _account = esVSP721.ownerOf(tokenId_);
         LockPosition memory _position = positions[tokenId_];
         uint256 _unlockTime = _position.unlockTime;
-
-        if (onlyIfOwner_) {
-            require(_msgSender() == _account, "not-position-owner");
-        }
 
         bool _isExpired = block.timestamp > _position.unlockTime;
 
@@ -240,7 +235,8 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      */
     function _kick(uint256 tokenId_) private {
-        _burn(tokenId_, true, false);
+        address _owner = esVSP721.ownerOf(tokenId_);
+        _burn(tokenId_, true, _owner);
     }
 
     /**
@@ -285,7 +281,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      */
     function _unlock(uint256 tokenId_, bool onlyIfExpired_) private {
-        _burn(tokenId_, onlyIfExpired_, true);
+        address _owner = esVSP721.ownerOf(tokenId_);
+        require(_msgSender() == _owner, "not-position-owner");
+        _burn(tokenId_, onlyIfExpired_, _owner);
     }
 
     /**
