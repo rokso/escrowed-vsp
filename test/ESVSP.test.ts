@@ -5,28 +5,19 @@ import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers'
 import {expect} from 'chai'
 import {BigNumber} from 'ethers'
 import {ethers} from 'hardhat'
-import {
-  ESVSP,
-  ESVSP721,
-  ESVSP721__factory,
-  ESVSP__factory,
-  IERC20,
-  IERC20__factory,
-  Rewards,
-  Rewards__factory,
-} from '../typechain'
+import {ESVSP, ESVSP721, ESVSP721__factory, ESVSP__factory, IERC20, IERC20__factory} from '../typechain'
 import {
   impersonateAccount,
   increaseTime,
-  VSP_ADDRESS,
   VSP_HOLDER,
   YEAR,
-  USDC_ADDRESS,
-  WETH_ADDRESS,
   timestampFromLatestBlock,
   WETH_HOLDER,
   USDC_HOLDER,
 } from './helpers'
+import Address from '../helpers/address'
+
+const {VSP_ADDRESS, USDC_ADDRESS, WETH_ADDRESS} = Address
 
 describe('ESVSP', function () {
   let snapshotId: string
@@ -308,7 +299,7 @@ describe('ESVSP', function () {
       const tx = esVsp.unlock(tokenId, beforeUnlockTime)
 
       // then
-      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId)
+      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, amount, amount, 0)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
@@ -416,7 +407,7 @@ describe('ESVSP', function () {
       const tx = esVsp.connect(bob).kick(tokenId)
 
       // then
-      await expect(tx).emit(esVsp, 'PositionKicked').withArgs(tokenId)
+      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, amount, amount, 0)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)

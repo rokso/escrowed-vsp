@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "./dependencies/@openzeppelin/token/ERC721/extensions/ERC721Enumerable.sol";
 import "./access/Governable.sol";
 import "./interface/IESVSP.sol";
 import "./interface/IESVSP721.sol";
@@ -25,8 +25,8 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @dev Revert if caller isn't the esVSP
      * @param tokenId_ The id of the token to burn
      */
-    function burn(uint256 tokenId_) external {
-        require(msg.sender == address(esVSP), "not-esvsp");
+    function burn(uint256 tokenId_) external override {
+        require(_msgSender() == address(esVSP), "not-esvsp");
         _burn(tokenId_);
     }
 
@@ -35,8 +35,8 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
      * @dev Revert if caller isn't the esVSP
      * @param to_ The receiver account
      */
-    function mint(address to_) external returns (uint256 _tokenId) {
-        require(msg.sender == address(esVSP), "not-esvsp");
+    function mint(address to_) external override returns (uint256 _tokenId) {
+        require(_msgSender() == address(esVSP), "not-esvsp");
         _tokenId = nextTokenId++;
         _mint(to_, _tokenId);
     }
@@ -68,7 +68,7 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     /**
      * @notice Update the base token URI
      */
-    function setBaseTokenURI(string memory baseTokenURI_) public onlyGovernor {
+    function setBaseTokenURI(string memory baseTokenURI_) external onlyGovernor {
         emit BaseTokenURIUpdated(baseTokenURI, baseTokenURI_);
         baseTokenURI = baseTokenURI_;
     }
@@ -76,7 +76,7 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     /**
      * @notice Set esVSP contract
      */
-    function setESVSP(IESVSP esVSP_) public onlyGovernor {
+    function setESVSP(IESVSP esVSP_) external onlyGovernor {
         require(address(esVSP_) != address(0), "address-is-null");
         emit ESVSPUpdated(esVSP, esVSP_);
         esVSP = esVSP_;

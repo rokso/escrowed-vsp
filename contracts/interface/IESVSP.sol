@@ -2,24 +2,10 @@
 
 pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "../dependencies/@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import "./IRewards.sol";
 
-interface IESVSP is IERC20, IERC20Metadata {
-    /// Emitted when a new position is created (i.e. when user locks VSP)
-    event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
-    /// Emitted when a position is burned (i.e. when user withdraws VSP)
-    event VspUnlocked(uint256 tokenId);
-    /// Emitted when a position is kicked (i.e. when expired)
-    event PositionKicked(uint256 tokenId);
-    /// Emitted when the exit penalty is updated
-    event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
-    /// Emitted when the exit penalty is updated
-    event RewardsUpdated(IRewards oldRewards, IRewards newRewards);
-    /// Emitted when the treasury address is updated
-    event TreasuryUpdated(address oldTreasury, address newTreasury);
-
+interface IESVSP is IERC20Metadata {
     function totalLocked() external view returns (uint256);
 
     function totalBoosted() external view returns (uint256);
