@@ -461,5 +461,42 @@ describe('ESVSP', function () {
       const balanceAfter = await esVsp721.balanceOf(alice.address)
       expect(balanceAfter).eq(balanceBefore.sub(3))
     })
+
+    it('gas usage - all expired', async function () {
+      // given
+      const positionsToKick = 5
+      for (let i = 0; i < positionsToKick; ++i) {
+        await esVsp.connect(bob).lock(parseEther('1'), YEAR)
+      }
+      await increaseTime(YEAR.add(1))
+      const before = await vsp.balanceOf(bob.address)
+
+      // when
+      const tx = await esVsp.connect(bob).kickAllExpiredOf(bob.address)
+      const receipt = await tx.wait()
+
+      // then
+      const after = await vsp.balanceOf(bob.address)
+      expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
+      expect(receipt.gasUsed).eq(309344) // ~61k each
+    })
+
+    it('gas usage - none expired', async function () {
+      // given
+      const positionsToKick = 5
+      for (let i = 0; i < positionsToKick; ++i) {
+        await esVsp.connect(bob).lock(parseEther('1'), YEAR)
+      }
+      const before = await vsp.balanceOf(bob.address)
+
+      // when
+      const tx = await esVsp.connect(bob).kickAllExpiredOf(bob.address)
+      const receipt = await tx.wait()
+
+      // then
+      const after = await vsp.balanceOf(bob.address)
+      expect(after).eq(before)
+      expect(receipt.gasUsed).eq(61462) // ~12k each
+    })
   })
 })

@@ -68,8 +68,9 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      */
     function kick(uint256 tokenId_) external override {
-        _updateReward(esVSP721.ownerOf(tokenId_));
-        _kick(tokenId_);
+        address _owner = esVSP721.ownerOf(tokenId_);
+        _updateReward(_owner);
+        _kick(tokenId_, _owner);
     }
 
     /**
@@ -173,7 +174,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         LockPosition memory _position = positions[tokenId_];
         uint256 _unlockTime = _position.unlockTime;
 
-        bool _isExpired = block.timestamp > _position.unlockTime;
+        bool _isExpired = block.timestamp > _unlockTime;
 
         if (onlyIfExpired_) {
             require(_isExpired, "not-unlocked-yet");
@@ -213,19 +214,14 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      */
     function _kickAllExpiredOf(address account_) private {
         uint256 _len = esVSP721.balanceOf(account_);
-        uint256[] memory _toKick = new uint256[](_len);
-
-        for (uint256 i; i < _len; ++i) {
+        uint256 i;
+        while (i < _len) {
             uint256 _tokenId = esVSP721.tokenOfOwnerByIndex(account_, i);
             if (block.timestamp > positions[_tokenId].unlockTime) {
-                _toKick[i] = _tokenId;
-            }
-        }
-
-        for (uint256 i; i < _len; ++i) {
-            uint256 _tokenId = _toKick[i];
-            if (_tokenId > 0) {
-                _kick(_tokenId);
+                _kick(_tokenId, account_);
+                _len--;
+            } else {
+                i++;
             }
         }
     }
@@ -234,9 +230,8 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Burn an expired position and send locked amount to the owner
      * @param tokenId_ ERC721 tokenId
      */
-    function _kick(uint256 tokenId_) private {
-        address _owner = esVSP721.ownerOf(tokenId_);
-        _burn(tokenId_, true, _owner);
+    function _kick(uint256 tokenId_, address owner_) private {
+        _burn(tokenId_, true, owner_);
     }
 
     /**
