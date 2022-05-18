@@ -90,7 +90,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     function lock(uint256 amount_, uint256 lockPeriod_) external override {
         address _to = _msgSender();
         _updateReward(_to);
-        _kickAllExpiredOf(_to);
         _lock(_to, amount_, lockPeriod_);
     }
 
@@ -105,7 +104,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         uint256 lockPeriod_
     ) external override {
         _updateReward(to_);
-        _kickAllExpiredOf(to_);
         _lock(to_, amount_, lockPeriod_);
     }
 
@@ -157,7 +155,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     function unlock(uint256 tokenId_, bool beforeUnlockTime_) external override {
         _updateReward(_msgSender());
         _unlock(tokenId_, !beforeUnlockTime_);
-        _kickAllExpiredOf(_msgSender());
     }
 
     /**

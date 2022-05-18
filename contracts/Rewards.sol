@@ -86,7 +86,6 @@ contract Rewards is Governable, RewardsStorageV1 {
                 _claimReward(_rewardToken, account_, _rewardAmount);
             }
         }
-        esVSP.kickAllExpiredOf(account_);
     }
 
     /**
