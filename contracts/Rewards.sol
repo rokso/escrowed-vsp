@@ -2,6 +2,7 @@
 
 pragma solidity 0.8.9;
 
+import "./dependencies/@openzeppelin/security/ReentrancyGuard.sol";
 import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import "./dependencies/@openzeppelin/utils/math/Math.sol";
 import "./dependencies/@openzeppelin/utils/math/SafeCast.sol";
@@ -11,7 +12,7 @@ import "./storage/RewardsStorage.sol";
 /**
  * @title Rewards contract
  */
-contract Rewards is Governable, RewardsStorageV1 {
+contract Rewards is ReentrancyGuard, Governable, RewardsStorageV1 {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -70,7 +71,7 @@ contract Rewards is Governable, RewardsStorageV1 {
      * @dev This function will claim rewards for all tokens being rewarded
      * @param account_ The account
      */
-    function claimRewards(address account_) external override {
+    function claimRewards(address account_) external override nonReentrant {
         uint256 _len = rewardTokens.length;
 
         uint256 _totalSupply;

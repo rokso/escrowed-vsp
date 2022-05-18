@@ -15,9 +15,6 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     /// Emitted when `baseTokenURI` is updated
     event BaseTokenURIUpdated(string oldBaseTokenURI, string newBaseTokenURI);
 
-    /// Emitted when esVSP contract is updated
-    event ESVSPUpdated(IESVSP oldESVSP, IESVSP newESVSP);
-
     constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {}
 
     /**
@@ -74,11 +71,12 @@ contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
     }
 
     /**
-     * @notice Set esVSP contract
+     * @notice Initialized esVSP contract
+     * @dev Called once
      */
-    function setESVSP(IESVSP esVSP_) external onlyGovernor {
+    function initializeESVSP(IESVSP esVSP_) external onlyGovernor {
+        require(address(esVSP) == address(0), "already-initialized");
         require(address(esVSP_) != address(0), "address-is-null");
-        emit ESVSPUpdated(esVSP, esVSP_);
         esVSP = esVSP_;
     }
 }

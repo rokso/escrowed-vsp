@@ -30,7 +30,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   })
 
   if (!wasDeployed) {
-    await execute(ESVSP721, {from: deployer, log: true}, 'setESVSP', esVSP.address)
+    await execute(ESVSP721, {from: deployer, log: true}, 'initializeESVSP', esVSP.address)
   }
 }
 
