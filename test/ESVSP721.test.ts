@@ -28,7 +28,7 @@ describe('ESVSP721', function () {
     const esVsp721Factory = new ESVSP721__factory(deployer)
     esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
     await esVsp721.deployed()
-    await esVsp721.setESVSP(esVspMock.address)
+    await esVsp721.initializeESVSP(esVspMock.address)
     await esVsp721.transferGovernorship(governor.address)
     await esVsp721.connect(governor).acceptGovernorship()
 
@@ -127,6 +127,54 @@ describe('ESVSP721', function () {
       // then
       const uri = await esVsp721.tokenURI(tokenId)
       expect(uri).eq(`${baseURI}${tokenId}`)
+    })
+  })
+
+  describe('initializeESVSP', function () {
+    beforeEach(async function () {
+      const esVsp721Factory = new ESVSP721__factory(deployer)
+      esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
+      await esVsp721.deployed()
+    })
+
+    it('should revert if not governor', async function () {
+      // when
+      const tx = esVsp721.connect(alice).initializeESVSP(esVspMock.address)
+
+      // then
+      await expect(tx).revertedWith('not-governor')
+    })
+
+    it('should revert if already initialized', async function () {
+      // given
+      await esVsp721.initializeESVSP(esVspMock.address)
+
+      // when
+      const tx = esVsp721.initializeESVSP(esVspMock.address)
+
+      // then
+      await expect(tx).revertedWith('already-initialized')
+    })
+
+    it('should revert if address is null', async function () {
+      // when
+      const tx = esVsp721.initializeESVSP(ethers.constants.AddressZero)
+
+      // then
+      await expect(tx).revertedWith('address-is-null')
+    })
+
+    it('should initialize the ESVSP contract', async function () {
+      // given
+      const before = await esVsp721.esVSP()
+      expect(before).eq(ethers.constants.AddressZero)
+
+      // when
+      await esVsp721.initializeESVSP(esVspMock.address)
+
+      // then
+      const after = await esVsp721.esVSP()
+      expect(after).eq(esVspMock.address)
     })
   })
 })

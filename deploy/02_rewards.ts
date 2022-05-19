@@ -28,7 +28,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   })
 
   if (!wasDeployed) {
-    await execute(ESVSP, {from: deployer, log: true}, 'setRewards', rewards.address)
+    await execute(ESVSP, {from: deployer, log: true}, 'initializeRewards', rewards.address)
   }
 }
 

@@ -2,6 +2,7 @@
 
 pragma solidity 0.8.9;
 
+import "./dependencies/@openzeppelin/security/ReentrancyGuard.sol";
 import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import "./access/Governable.sol";
 import "./storage/ESVSPStorage.sol";
@@ -9,7 +10,7 @@ import "./storage/ESVSPStorage.sol";
 /**
  * @title Non-transferable escrowed VSP.
  */
-contract ESVSP is Governable, ESVSPStorageV1 {
+contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
     using SafeERC20 for IERC20;
 
     string public constant VERSION = "1.0.0";
@@ -26,9 +27,6 @@ contract ESVSP is Governable, ESVSPStorageV1 {
 
     /// Emitted when the exit penalty is updated
     event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
-
-    /// Emitted when the exit penalty is updated
-    event RewardsUpdated(IRewards oldRewards, IRewards newRewards);
 
     /// Emitted when the treasury address is updated
     event TreasuryUpdated(address oldTreasury, address newTreasury);
@@ -67,7 +65,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Burn an expired position and send locked amount to the owner
      * @param tokenId_ ERC721 tokenId
      */
-    function kick(uint256 tokenId_) external override {
+    function kick(uint256 tokenId_) external override nonReentrant {
         address _owner = esVSP721.ownerOf(tokenId_);
         _updateReward(_owner);
         _kick(tokenId_, _owner);
@@ -77,7 +75,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @notice Kick all expired positions from a given account
      * @param account_ The target account
      */
-    function kickAllExpiredOf(address account_) external override {
+    function kickAllExpiredOf(address account_) external override nonReentrant {
         _updateReward(account_);
         _kickAllExpiredOf(account_);
     }
@@ -87,7 +85,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param amount_ The VSP amount to lock
      * @param lockPeriod_ The lock period
      */
-    function lock(uint256 amount_, uint256 lockPeriod_) external override {
+    function lock(uint256 amount_, uint256 lockPeriod_) external override nonReentrant {
         address _to = _msgSender();
         _updateReward(_to);
         _lock(_to, amount_, lockPeriod_);
@@ -102,7 +100,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
         address to_,
         uint256 amount_,
         uint256 lockPeriod_
-    ) external override {
+    ) external override nonReentrant {
         _updateReward(to_);
         _lock(to_, amount_, lockPeriod_);
     }
@@ -152,7 +150,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param tokenId_ ERC721 tokenId
      * @param beforeUnlockTime_ When `true` unlock before expiration and pays exit penalty
      */
-    function unlock(uint256 tokenId_, bool beforeUnlockTime_) external override {
+    function unlock(uint256 tokenId_, bool beforeUnlockTime_) external override nonReentrant {
         _updateReward(_msgSender());
         _unlock(tokenId_, !beforeUnlockTime_);
     }
@@ -291,13 +289,13 @@ contract ESVSP is Governable, ESVSPStorageV1 {
     /** Governance methods **/
 
     /**
-     * @notice Set the Rewards contract
+     * @notice Initialize the Rewards contract
+     * @dev Called once
      * @param rewards_ The new contract
      */
-    function setRewards(IRewards rewards_) external onlyGovernor {
+    function initializeRewards(IRewards rewards_) external onlyGovernor {
+        require(address(rewards) == address(0), "already-initialized");
         require(address(rewards_) != address(0), "address-is-null");
-        require(address(rewards_) != address(rewards), "same-as-current");
-        emit RewardsUpdated(rewards, rewards_);
         rewards = rewards_;
     }
 
@@ -317,7 +315,7 @@ contract ESVSP is Governable, ESVSPStorageV1 {
      * @param treasury_ The new treasury address
      */
     function updateTreasury(address treasury_) external onlyGovernor {
-        require(treasury_ != address(0), "addressis-null");
+        require(treasury_ != address(0), "address-null");
         require(treasury_ != treasury, "address-is-same-as-current");
         emit TreasuryUpdated(treasury, treasury_);
         treasury = treasury_;

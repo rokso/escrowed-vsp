@@ -46,7 +46,7 @@ describe('ESVSP', function () {
     const esVsp721Factory = new ESVSP721__factory(deployer)
     esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
     await esVsp721.deployed()
-    await esVsp721.setESVSP(esVsp.address)
+    await esVsp721.initializeESVSP(esVsp.address)
 
     await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address, treasury.address)
     await esVsp.transferGovernorship(governor.address)
@@ -478,7 +478,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
-      expect(receipt.gasUsed).eq(309344) // ~61k each
+      expect(receipt.gasUsed).eq(313455) // ~61k each
     })
 
     it('gas usage - none expired', async function () {
@@ -496,7 +496,49 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after).eq(before)
-      expect(receipt.gasUsed).eq(61462) // ~12k each
+      expect(receipt.gasUsed).eq(63800) // ~12k each
+    })
+  })
+
+  describe('initializeRewards', function () {
+    it('should revert if not governor', async function () {
+      // when
+      const tx = esVsp.connect(alice).initializeRewards(alice.address)
+
+      // then
+      await expect(tx).revertedWith('not-governor')
+    })
+
+    it('should revert if already initialized', async function () {
+      // given
+      await esVsp.connect(governor).initializeRewards(alice.address)
+
+      // when
+      const tx = esVsp.connect(governor).initializeRewards(alice.address)
+
+      // then
+      await expect(tx).revertedWith('already-initialized')
+    })
+
+    it('should revert if address is null', async function () {
+      // when
+      const tx = esVsp.connect(governor).initializeRewards(ethers.constants.AddressZero)
+
+      // then
+      await expect(tx).revertedWith('address-is-null')
+    })
+
+    it('should initialize the ESVSP contract', async function () {
+      // given
+      const before = await esVsp.rewards()
+      expect(before).eq(ethers.constants.AddressZero)
+
+      // when
+      await esVsp.connect(governor).initializeRewards(alice.address)
+
+      // then
+      const after = await esVsp.rewards()
+      expect(after).eq(alice.address)
     })
   })
 })
