@@ -4,18 +4,19 @@ pragma solidity 0.8.9;
 
 import "./dependencies/@openzeppelin/token/ERC721/extensions/ERC721Enumerable.sol";
 import "./access/Governable.sol";
-import "./interface/IESVSP.sol";
+import "./storage/ESVSP721Storage.sol";
 import "./interface/IESVSP721.sol";
 
-contract ESVSP721 is Governable, IESVSP721, ERC721Enumerable {
-    string public baseTokenURI;
-    IESVSP public esVSP;
-    uint256 public nextTokenId = 1;
-
+contract ESVSP721 is IESVSP721, Governable, ERC721Enumerable, ESVSP721StorageV1 {
     /// Emitted when `baseTokenURI` is updated
     event BaseTokenURIUpdated(string oldBaseTokenURI, string newBaseTokenURI);
 
-    constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {}
+    function initialize(string memory name_, string memory symbol_) external initializer {
+        __ERC721_init(name_, symbol_);
+        __Governable_init();
+
+        nextTokenId = 1;
+    }
 
     /**
      * @notice Burn NFT

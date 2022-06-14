@@ -20,6 +20,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     log: true,
     proxy: {
       proxyContract: 'OpenZeppelinTransparentProxy',
+      viaAdminContract: 'ESVSPUpgrader',
       execute: {
         init: {
           methodName: 'initialize',
