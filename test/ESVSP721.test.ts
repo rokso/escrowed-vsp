@@ -26,8 +26,9 @@ describe('ESVSP721', function () {
     await setEtherBalance(esVspMock.address, parseEther('10'))
 
     const esVsp721Factory = new ESVSP721__factory(deployer)
-    esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
+    esVsp721 = await esVsp721Factory.deploy()
     await esVsp721.deployed()
+    await esVsp721.initialize('VSP Escrow NFT', 'esVSP-NFT')
     await esVsp721.initializeESVSP(esVspMock.address)
     await esVsp721.transferGovernorship(governor.address)
     await esVsp721.connect(governor).acceptGovernorship()
@@ -133,8 +134,9 @@ describe('ESVSP721', function () {
   describe('initializeESVSP', function () {
     beforeEach(async function () {
       const esVsp721Factory = new ESVSP721__factory(deployer)
-      esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
+      esVsp721 = await esVsp721Factory.deploy()
       await esVsp721.deployed()
+      await esVsp721.initialize('VSP Escrow NFT', 'esVSP-NFT')
     })
 
     it('should revert if not governor', async function () {

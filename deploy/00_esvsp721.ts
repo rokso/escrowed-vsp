@@ -11,7 +11,16 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   await deploy(ESVSP721, {
     from: deployer,
     log: true,
-    args: ['VSP Escrow NFT', 'esVSP-NFT'],
+    proxy: {
+      proxyContract: 'OpenZeppelinTransparentProxy',
+      viaAdminContract: 'ESVSP721Upgrader',
+      execute: {
+        init: {
+          methodName: 'initialize',
+          args: ['VSP Escrow NFT', 'esVSP-NFT'],
+        },
+      },
+    },
   })
 }
 

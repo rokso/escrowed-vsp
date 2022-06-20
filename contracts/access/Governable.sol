@@ -15,20 +15,11 @@ import "../interface/IGovernable.sol";
  * can later be changed with {transferGovernorship}.
  *
  */
-abstract contract Governable is IGovernable, Context, Initializable {
+abstract contract Governable is IGovernable, Initializable, Context {
     address public governor;
-    address private proposedGovernor;
+    address public proposedGovernor;
 
     event UpdatedGovernor(address indexed previousGovernor, address indexed proposedGovernor);
-
-    /**
-     * @dev Initializes the contract setting the deployer as the initial governor.
-     */
-    constructor() {
-        address msgSender = _msgSender();
-        governor = msgSender;
-        emit UpdatedGovernor(address(0), msgSender);
-    }
 
     /**
      * @dev If inheriting child is using proxy then child contract can use
@@ -36,9 +27,8 @@ abstract contract Governable is IGovernable, Context, Initializable {
      */
     // solhint-disable-next-line func-name-mixedcase
     function __Governable_init() internal onlyInitializing {
-        address msgSender = _msgSender();
-        governor = msgSender;
-        emit UpdatedGovernor(address(0), msgSender);
+        governor = _msgSender();
+        emit UpdatedGovernor(address(0), governor);
     }
 
     /**

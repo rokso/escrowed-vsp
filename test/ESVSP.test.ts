@@ -44,8 +44,9 @@ describe('ESVSP', function () {
     await esVsp.deployed()
 
     const esVsp721Factory = new ESVSP721__factory(deployer)
-    esVsp721 = await esVsp721Factory.deploy('VSP Escrow NFT', 'esVSP-NFT')
+    esVsp721 = await esVsp721Factory.deploy()
     await esVsp721.deployed()
+    await esVsp721.initialize('VSP Escrow NFT', 'esVSP-NFT')
     await esVsp721.initializeESVSP(esVsp.address)
 
     await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address, treasury.address)
@@ -478,7 +479,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
-      expect(receipt.gasUsed).eq(313455) // ~61k each
+      expect(receipt.gasUsed).eq(313208) // ~61k each
     })
 
     it('gas usage - none expired', async function () {
@@ -496,7 +497,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after).eq(before)
-      expect(receipt.gasUsed).eq(63800) // ~12k each
+      expect(receipt.gasUsed).eq(63602) // ~12k each
     })
   })
 
