@@ -34,3 +34,8 @@ With these contracts, VSP holders may lock their tokens in order to boost voting
    npm run verify
 
    ```
+5. Create Release
+
+   ```sh
+   npm run release -- --release <version> --network <network>
+   ```
