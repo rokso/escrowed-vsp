@@ -10,6 +10,7 @@ import 'hardhat-contract-sizer'
 import '@typechain/hardhat'
 import 'hardhat-spdx-license-identifier'
 import dotenv from 'dotenv'
+import './tasks/create-release'
 
 dotenv.config()
 
