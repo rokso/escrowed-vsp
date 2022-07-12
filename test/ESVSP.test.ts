@@ -479,7 +479,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
-      expect(receipt.gasUsed).eq(313208) // ~61k each
+      expect(receipt.gasUsed).eq(320664) // ~61k each
     })
 
     it('gas usage - none expired', async function () {
