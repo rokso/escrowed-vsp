@@ -143,6 +143,8 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
         boosted[_from] -= _boosted;
         locked[to_] += _locked;
         boosted[to_] += _boosted;
+
+        emit Transfer(_from, to_, _boosted);
     }
 
     /**
@@ -200,6 +202,7 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
 
         VSP.safeTransfer(_account, _toTransfer);
 
+        emit Transfer(_account, address(0), _boosted);
         emit VspUnlocked(tokenId_, _locked, _toTransfer, _locked - _toTransfer);
     }
 
@@ -263,6 +266,7 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
             unlockTime: block.timestamp + lockPeriod_
         });
 
+        emit Transfer(address(0), to_, _boostedAmount);
         emit VspLocked(_tokenId, to_, amount_, lockPeriod_);
     }
 
