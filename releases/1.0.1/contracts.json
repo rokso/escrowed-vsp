@@ -1,0 +1,19 @@
+{
+  "version": "1.0.1",
+  "networks": {
+    "mainnet": {
+      "ESVSP": "0xBbc50daFd976d4Bd7854a8329646FB88d7fA1018",
+      "ESVSP721": "0x9b62D5e13250D41cC00b61c6006d413Ce5f48428",
+      "ESVSP721Upgrader": "0x0e8C5c81053581341Ba45Ea149982eBf862CbD4E",
+      "ESVSP721_Implementation": "0x927367b4cEcB2ac2723488411EAE967eb70393d4",
+      "ESVSP721_Proxy": "0x9b62D5e13250D41cC00b61c6006d413Ce5f48428",
+      "ESVSPUpgrader": "0xD3BD28A160CC2AE5AD5A24513173FC109929C85a",
+      "ESVSP_Implementation": "0xd18709aCC6dB21c7db15fc077154dd6c2E2076f5",
+      "ESVSP_Proxy": "0xBbc50daFd976d4Bd7854a8329646FB88d7fA1018",
+      "Rewards": "0x0D6D94F53C2Ecb24f3C632745a535a947Ee43b97",
+      "RewardsUpgrader": "0xD88E30794d3bAa5aCcEDEabd08eD76B8a968a720",
+      "Rewards_Implementation": "0x4979585Df899130aeD4E2d945E89BBFeB01c51C0",
+      "Rewards_Proxy": "0x0D6D94F53C2Ecb24f3C632745a535a947Ee43b97"
+    }
+  }
+}
