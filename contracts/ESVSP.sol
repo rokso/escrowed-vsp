@@ -62,6 +62,25 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
     }
 
     /**
+     * @notice Calculate exit penalty for a position
+     * @param tokenId_ The position/token id
+     */
+    function calculateExitPenalty(uint256 tokenId_) external view returns (uint256 _penalty) {
+        LockPosition memory _position = positions[tokenId_];
+        if (block.timestamp < _position.unlockTime) {
+            _penalty = _calculateExitPenalty(_position);
+        }
+    }
+
+    /**
+     * @notice Get the lock period
+     * @param tokenId_ The position/token id
+     */
+    function getLockedPeriodOf(uint256 tokenId_) external view returns (uint256 _lockPeriod) {
+        return _getLockedPeriodOf(positions[tokenId_]);
+    }
+
+    /**
      * @notice Burn an expired position and send locked amount to the owner
      * @param tokenId_ ERC721 tokenId
      */
@@ -191,9 +210,7 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
         uint256 _toTransfer = _locked;
 
         if (!_isExpired && exitPenalty > 0) {
-            uint256 _lockPeriod = (_boosted * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _locked;
-            uint256 _progress = ((_unlockTime - block.timestamp) * 1e18) / _lockPeriod;
-            uint256 _penalty = (((_locked * exitPenalty) / 1e18) * _progress) / 1e18;
+            uint256 _penalty = _calculateExitPenalty(_position);
             if (_penalty > 0) {
                 VSP.safeTransfer(treasury, _penalty);
                 _toTransfer -= _penalty;
@@ -204,6 +221,23 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
 
         emit Transfer(_account, address(0), _boosted);
         emit VspUnlocked(tokenId_, _locked, _toTransfer, _locked - _toTransfer);
+    }
+
+    /**
+     * @notice Calculate exit penalty for a non-expired position
+     * @param _position The position to check (must be non-expired)
+     */
+    function _calculateExitPenalty(LockPosition memory _position) private view returns (uint256 _penalty) {
+        uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _getLockedPeriodOf(_position);
+        return (((_position.lockedAmount * exitPenalty) / 1e18) * _progress) / 1e18;
+    }
+
+    /**
+     * @notice Get the lock period
+     * @param _position The position
+     */
+    function _getLockedPeriodOf(LockPosition memory _position) private pure returns (uint256 _lockPeriod) {
+        return (_position.boostedAmount * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _position.lockedAmount;
     }
 
     /**
