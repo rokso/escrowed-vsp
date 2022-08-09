@@ -583,6 +583,57 @@ describe('Rewards', function () {
         expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
       })
 
+      it('should give rewards when token is added after locking', async function () {
+        const rewardToken = USDC_ADDRESS
+
+        // given
+        const lockedAmount = await esVsp.balanceOf(alice.address)
+        expect(lockedAmount).gt(0)
+
+        await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, true)
+
+        await usdc.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
+        const amount = parseUnits('30', 6)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await rewards.updateReward(alice.address)
+
+        // then
+        const {claimableRewardsStored: claimableRewardsStored} = await rewards.rewardOf(rewardToken, alice.address)
+        expect(claimableRewardsStored).closeTo(parseUnits('10', 6), parseUnits('1', 6))
+      })
+
+      it('should give rewards properly for users that locked before and after its addition', async function () {
+        const rewardToken = USDC_ADDRESS
+
+        // given
+        // add new reward token
+        await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, true)
+        // bob locks VSP
+        await esVsp.connect(bob).lock(parseEther('100'), YEAR.div('2'))
+        expect(await esVsp.balanceOf(alice.address)).eq(parseEther('200'))
+        expect(await esVsp.balanceOf(bob.address)).eq(parseEther('100'))
+        // distribute new reward tokens
+        await usdc.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
+        // total of 30 (~1 token per day)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, parseUnits('30', 6))
+
+        // when
+        await increaseTime(DAY.mul(10))
+        await rewards.updateReward(alice.address)
+        await rewards.updateReward(bob.address)
+
+        // then
+        const {claimableRewardsStored: aliceClaimable} = await rewards.rewardOf(rewardToken, alice.address)
+        const {claimableRewardsStored: bobClaimable} = await rewards.rewardOf(rewardToken, bob.address)
+        expect(aliceClaimable.add(bobClaimable)).closeTo(parseUnits('10', 6), parseUnits('0.5', 6))
+        expect(aliceClaimable).closeTo(parseUnits('6.66', 6), parseUnits('0.5', 6))
+        expect(bobClaimable).closeTo(parseUnits('3.33', 6), parseUnits('0.5', 6))
+      })
+
       it('should give no rewards if account did not lock', async function () {
         // given
         const {claimableRewardsStored: claimableRewardsStoredBefore} = await rewards.rewardOf(
@@ -707,6 +758,58 @@ describe('Rewards', function () {
         )
         expect(rewardPerTokenAfter).gt(rewardPerTokenBefore)
         expect(lastUpdateTimeAfter).closeTo(lastUpdateTimeBefore.add(elapsedTime), 5)
+      })
+
+      it('should give rewards when token is added after locking', async function () {
+        const rewardToken = USDC_ADDRESS
+
+        // given
+        const lockedAmount = await esVsp.balanceOf(alice.address)
+        expect(lockedAmount).gt(0)
+
+        await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, false)
+
+        await usdc.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
+        const amount = parseUnits('30', 6)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
+
+        // when
+        const elapsedTime = DAY.mul(10)
+        await increaseTime(elapsedTime)
+        await rewards.updateReward(alice.address)
+
+        // then
+        const {claimableRewardsStored: claimableRewardsStored} = await rewards.rewardOf(rewardToken, alice.address)
+        expect(claimableRewardsStored).closeTo(parseUnits('10', 6), parseUnits('1', 6))
+      })
+
+      it('should give rewards properly for users that locked before and after its addition', async function () {
+        const rewardToken = USDC_ADDRESS
+
+        // given
+        // add new reward token
+        await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, false)
+        // bob locks VSP
+        await esVsp.connect(bob).lock(parseEther('50'), YEAR)
+        expect(await esVsp.locked(alice.address)).eq(parseEther('100'))
+        expect(await esVsp.locked(bob.address)).eq(parseEther('50'))
+        // distribute new reward tokens
+        await usdc.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
+        // total of 30 (~1 token per day)
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, parseUnits('15', 6))
+        await rewards.connect(distributor).dripRewardAmount(rewardToken, parseUnits('15', 6))
+
+        // when
+        await increaseTime(DAY.mul(10))
+        await rewards.updateReward(alice.address)
+        await rewards.updateReward(bob.address)
+
+        // then
+        const {claimableRewardsStored: aliceClaimable} = await rewards.rewardOf(rewardToken, alice.address)
+        const {claimableRewardsStored: bobClaimable} = await rewards.rewardOf(rewardToken, bob.address)
+        // after 10 days total distributed is 10 tokens
+        expect(aliceClaimable).closeTo(parseUnits('6.66', 6), parseUnits('1', 6))
+        expect(bobClaimable).closeTo(parseUnits('3.33', 6), parseUnits('1', 6))
       })
 
       it('should give no rewards if account did not lock', async function () {
