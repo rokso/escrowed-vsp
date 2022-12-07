@@ -64,4 +64,32 @@ abstract contract ESVSPStorageV1 is IESVSP {
      * @dev user => total boosted;
      */
     mapping(address => uint256) public override boosted;
+
+    /**
+     * @notice A record of each accounts delegate
+     */
+    mapping(address => address) public delegates;
+
+    /**
+     * @notice A checkpoint for marking number of votes from a given block
+     */
+    struct Checkpoint {
+        uint32 fromBlock;
+        uint256 votes;
+    }
+
+    /**
+     * @notice A record of votes checkpoints for each account, by index
+     */
+    mapping(address => mapping(uint32 => Checkpoint)) public checkpoints;
+
+    /**
+     * @notice The number of checkpoints for each account
+     */
+    mapping(address => uint32) public numCheckpoints;
+
+    /**
+     * @notice A record of states for signing / validating signatures
+     */
+    mapping(address => uint256) public nonces;
 }

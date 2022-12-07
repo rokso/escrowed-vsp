@@ -14,6 +14,7 @@ import {
   timestampFromLatestBlock,
   WETH_HOLDER,
   USDC_HOLDER,
+  MONTH,
 } from './helpers'
 import Address from '../helpers/address'
 
@@ -479,7 +480,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
-      expect(receipt.gasUsed).eq(320664) // ~64k each
+      expect(receipt.gasUsed).eq(323873) // ~64k each
     })
 
     it('gas usage - none expired', async function () {
@@ -497,7 +498,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after).eq(before)
-      expect(receipt.gasUsed).eq(63602) // ~12k each
+      expect(receipt.gasUsed).eq(63713) // ~12k each
     })
   })
 
@@ -540,6 +541,80 @@ describe('ESVSP', function () {
       // then
       const after = await esVsp.rewards()
       expect(after).eq(alice.address)
+    })
+  })
+
+  describe('Check voting power', function () {
+    it('Should check current votes', async function () {
+      // given, alice locked 100 VSP and delegate voting power to self
+      await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+      await esVsp.connect(alice).delegate(alice.address)
+      // when
+      const votes = await esVsp.getCurrentVotes(alice.address)
+
+      // then verify vote = locked + boosted
+      const locked = await esVsp.locked(alice.address)
+      const boosted = await esVsp.balanceOf(alice.address)
+      expect(votes).eq(locked.add(boosted))
+    })
+
+    it('Should check current votes after unlock', async function () {
+      // given, carl locked 100 VSP and delegate voting power to self
+      await esVsp.connect(carl).lock(parseEther('100'), MONTH)
+      await esVsp.connect(carl).delegate(carl.address)
+      await increaseTime(MONTH.add(1))
+
+      // when
+      await esVsp.connect(carl).unlock(1, false)
+      const votes = await esVsp.getCurrentVotes(carl.address)
+
+      // then verify vote = locked + boosted
+      expect(votes).eq(0)
+    })
+
+    it('Should check prior votes', async function () {
+      // given, alice locked 100 VSP and delegate voting power to self
+      await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+      await esVsp.connect(alice).delegate(alice.address)
+
+      const blockNumber = await ethers.provider.getBlockNumber()
+      const votes = await esVsp.getCurrentVotes(alice.address)
+
+      // when
+      await esVsp.connect(alice).lock(parseEther('100'), MONTH)
+      const priorVote = await esVsp.getPriorVotes(alice.address, blockNumber)
+
+      // then
+      expect(priorVote).eq(votes)
+
+      const currentVotes = await esVsp.getCurrentVotes(alice.address)
+      expect(currentVotes).eq((await esVsp.locked(alice.address)).add(await esVsp.balanceOf(alice.address)))
+    })
+
+    it('Should check votes when position is transferred', async function () {
+      // given, bob locked 100 VSP and delegate voting power to self
+      await esVsp.connect(bob).lock(parseEther('100'), YEAR)
+      await esVsp.connect(bob).delegate(alice.address)
+      await esVsp.connect(carl).delegate(carl.address)
+
+      const blockNumber = await ethers.provider.getBlockNumber()
+      const votes = await esVsp.getCurrentVotes(bob.address)
+      const positionId = 1
+
+      // when bob transfer position to carl
+      expect(await esVsp721.ownerOf(positionId)).eq(bob.address)
+      const esVsp721Wallet = await impersonateAccount(esVsp721.address)
+      await esVsp.connect(esVsp721Wallet).transferPosition(positionId, carl.address)
+
+      // then
+      const priorVote = await esVsp.getPriorVotes(bob.address, blockNumber)
+      expect(priorVote).eq(votes)
+
+      const currentVotes = await esVsp.getCurrentVotes(bob.address)
+      expect(currentVotes).eq((await esVsp.locked(bob.address)).add(await esVsp.balanceOf(bob.address)))
+
+      const currentVotesCarl = await esVsp.getCurrentVotes(carl.address)
+      expect(currentVotesCarl).to.be.eq((await esVsp.locked(carl.address)).add(await esVsp.balanceOf(carl.address)))
     })
   })
 })
