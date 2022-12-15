@@ -169,9 +169,10 @@ describe('ESVSP', function () {
       expect(await esVsp721.balanceOf(alice.address)).eq(1)
 
       // erc20
-      expect(await esVsp.totalSupply()).eq(totalBoosted)
-      expect(await esVsp.balanceOf(alice.address)).eq(boosted)
-      expect(await esVsp.lockedBalanceOf(alice.address)).eq(locked)
+      expect(await esVsp.totalSupply()).eq(totalBoosted.add(totalLocked))
+      expect(await esVsp.balanceOf(alice.address)).eq(boosted.add(locked))
+      expect(await esVsp.locked(alice.address)).eq(locked)
+      expect(await esVsp.boosted(alice.address)).eq(boosted)
     })
   })
 
@@ -219,9 +220,10 @@ describe('ESVSP', function () {
       expect(await esVsp721.balanceOf(to)).eq(1)
 
       // erc20
-      expect(await esVsp.totalSupply()).eq(totalBoosted)
-      expect(await esVsp.balanceOf(to)).eq(boosted)
-      expect(await esVsp.lockedBalanceOf(to)).eq(locked)
+      expect(await esVsp.totalSupply()).eq(totalBoosted.add(totalLocked))
+      expect(await esVsp.balanceOf(to)).eq(boosted.add(locked))
+      expect(await esVsp.locked(to)).eq(locked)
+      expect(await esVsp.boosted(to)).eq(boosted)
     })
   })
 
@@ -326,9 +328,10 @@ describe('ESVSP', function () {
       expect(await esVsp721.balanceOf(alice.address)).eq(0)
 
       // erc20
-      expect(await esVsp.totalSupply()).eq(totalBoosted)
-      expect(await esVsp.balanceOf(alice.address)).eq(boosted)
-      expect(await esVsp.lockedBalanceOf(alice.address)).eq(locked)
+      expect(await esVsp.totalSupply()).eq(totalBoosted.add(totalLocked))
+      expect(await esVsp.balanceOf(alice.address)).eq(boosted.add(locked))
+      expect(await esVsp.locked(alice.address)).eq(locked)
+      expect(await esVsp.boosted(alice.address)).eq(boosted)
     })
   })
 
@@ -363,21 +366,21 @@ describe('ESVSP', function () {
     it('should transfer position (ERC20-only)', async function () {
       const totalSupplyBefore = await esVsp.totalSupply()
       const positionBefore = await esVsp.positions(tokenId)
-      expect(await esVsp.lockedBalanceOf(alice.address)).eq(amount)
-      expect(await esVsp.lockedBalanceOf(bob.address)).eq(0)
-      const {boostedAmount: boosted} = positionBefore
+      expect(await esVsp.locked(alice.address)).eq(amount)
+      expect(await esVsp.locked(bob.address)).eq(0)
+      const balance = await esVsp.balanceOf(alice.address)
 
       // when
       const tx = () => esVsp.connect(esVsp721Wallet).transferPosition(tokenId, bob.address)
 
       // then
-      await expect(tx).changeTokenBalances(esVsp, [alice, bob], [boosted.mul(-1), boosted])
+      await expect(tx).changeTokenBalances(esVsp, [alice, bob], [balance.mul(-1), balance])
       const totalSupplyAfter = await esVsp.totalSupply()
       expect(totalSupplyAfter).eq(totalSupplyBefore)
       const positionAfter = await esVsp.positions(tokenId)
       expect(positionAfter).deep.eq(positionBefore)
-      expect(await esVsp.lockedBalanceOf(alice.address)).eq(0)
-      expect(await esVsp.lockedBalanceOf(bob.address)).eq(amount)
+      expect(await esVsp.locked(alice.address)).eq(0)
+      expect(await esVsp.locked(bob.address)).eq(amount)
     })
   })
 
@@ -434,9 +437,10 @@ describe('ESVSP', function () {
       expect(await esVsp721.balanceOf(alice.address)).eq(0)
 
       // erc20
-      expect(await esVsp.totalSupply()).eq(totalBoosted)
-      expect(await esVsp.balanceOf(alice.address)).eq(boosted)
-      expect(await esVsp.lockedBalanceOf(alice.address)).eq(locked)
+      expect(await esVsp.totalSupply()).eq(totalBoosted.add(totalLocked))
+      expect(await esVsp.balanceOf(alice.address)).eq(boosted.add(locked))
+      expect(await esVsp.locked(alice.address)).eq(locked)
+      expect(await esVsp.boosted(alice.address)).eq(boosted)
     })
   })
 
@@ -552,10 +556,8 @@ describe('ESVSP', function () {
       // when
       const votes = await esVsp.getCurrentVotes(alice.address)
 
-      // then verify vote = locked + boosted
-      const locked = await esVsp.locked(alice.address)
-      const boosted = await esVsp.balanceOf(alice.address)
-      expect(votes).eq(locked.add(boosted))
+      // then verify vote
+      expect(votes).eq(await esVsp.balanceOf(alice.address))
     })
 
     it('Should check current votes after unlock', async function () {
@@ -588,7 +590,7 @@ describe('ESVSP', function () {
       expect(priorVote).eq(votes)
 
       const currentVotes = await esVsp.getCurrentVotes(alice.address)
-      expect(currentVotes).eq((await esVsp.locked(alice.address)).add(await esVsp.balanceOf(alice.address)))
+      expect(currentVotes).eq(await esVsp.balanceOf(alice.address))
     })
 
     it('Should check votes when position is transferred', async function () {
@@ -611,10 +613,10 @@ describe('ESVSP', function () {
       expect(priorVote).eq(votes)
 
       const currentVotes = await esVsp.getCurrentVotes(bob.address)
-      expect(currentVotes).eq((await esVsp.locked(bob.address)).add(await esVsp.balanceOf(bob.address)))
+      expect(currentVotes).eq(await esVsp.balanceOf(bob.address))
 
       const currentVotesCarl = await esVsp.getCurrentVotes(carl.address)
-      expect(currentVotesCarl).to.be.eq((await esVsp.locked(carl.address)).add(await esVsp.balanceOf(carl.address)))
+      expect(currentVotesCarl).eq(await esVsp.balanceOf(carl.address))
     })
   })
 })

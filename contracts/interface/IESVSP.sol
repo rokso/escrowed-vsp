@@ -30,7 +30,5 @@ interface IESVSP is IERC20Metadata {
 
     function kickAllExpiredOf(address account_) external;
 
-    function lockedBalanceOf(address account_) external view returns (uint256);
-
     function transferPosition(uint256 tokenId_, address to_) external;
 }

@@ -52,13 +52,15 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     }
 
     /**
-     * @notice Get boosted VSP balance of user. This is different than ESVSP721.balanceOf()
-     * It is sum of boosted amount of VSP in each ERC721 (i.e. ESVSP721) token of user
+     * @notice Get total(locked + boosted) VSP balance of user. This is different than ESVSP721.balanceOf().
+     * It is sum of
+     * - total locked VSP:: sum of locked VSP in each ESVSP721 token, position, of user.
+     * - total boosted VSP:: sum of boosted amount of VSP in each ESVSP721 token, position, of user.
      * @param account_ The account
-     * @return user's boost VSP balance. Boost VSP > locked VSP
+     * @return user's total VSP balance.
      */
-    function balanceOf(address account_) external view override returns (uint256) {
-        return boosted[account_];
+    function balanceOf(address account_) public view override returns (uint256) {
+        return locked[account_] + boosted[account_];
     }
 
     /**
@@ -125,20 +127,10 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     }
 
     /**
-     * @notice Get total locked VSP balance of user
-     * It is sum of locked VSP in each ERC721 (i.e. ESVSP721) token of user
-     * @param account_ The account
-     * @return user's locked VSP balance
-     */
-    function lockedBalanceOf(address account_) external view override returns (uint256) {
-        return locked[account_];
-    }
-
-    /**
-     * @notice Total boosted amount
+     * @notice Total Supply is some of total boosted and total locked
      */
     function totalSupply() external view override returns (uint256) {
-        return totalBoosted;
+        return totalBoosted + totalLocked;
     }
 
     /**
@@ -162,7 +154,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[_from] -= _boosted;
         locked[to_] += _locked;
         boosted[to_] += _boosted;
-        _moveVotingPower(delegates[_from], delegates[to_], _locked + _boosted);
+        _moveDelegates(delegates[_from], delegates[to_], _locked + _boosted);
 
         emit Transfer(_from, to_, _boosted);
     }
@@ -208,7 +200,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[_account] -= _boosted;
         totalBoosted -= _boosted;
 
-        _moveVotingPower(delegates[_account], address(0), _locked + _boosted);
+        _moveDelegates(delegates[_account], address(0), _locked + _boosted);
         uint256 _toTransfer = _locked;
 
         if (!_isExpired && exitPenalty > 0) {
@@ -236,13 +228,10 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
 
     function _delegate(address delegator, address delegatee) internal override {
         address currentDelegate = delegates[delegator];
-        // voting power = boosted VSP + actual locked VSP.
-        uint256 delegatorBalance = locked[delegator] + boosted[delegator];
         delegates[delegator] = delegatee;
-
         emit DelegateChanged(delegator, currentDelegate, delegatee);
 
-        _moveVotingPower(currentDelegate, delegatee, delegatorBalance);
+        _moveDelegates(currentDelegate, delegatee, balanceOf(delegator));
     }
 
     /**
@@ -304,7 +293,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[to_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
-        _moveVotingPower(address(0), delegates[to_], _lockedAmount + _boostedAmount);
+        _moveDelegates(address(0), delegates[to_], _lockedAmount + _boostedAmount);
 
         uint256 _tokenId = esVSP721.mint(to_);
 
