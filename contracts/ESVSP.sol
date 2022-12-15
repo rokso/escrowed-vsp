@@ -5,12 +5,12 @@ pragma solidity 0.8.9;
 import "./dependencies/@openzeppelin/security/ReentrancyGuard.sol";
 import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import "./access/Governable.sol";
-import "./storage/ESVSPStorage.sol";
+import "./GovernanceToken.sol";
 
 /**
  * @title Non-transferable escrowed VSP.
  */
-contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
+contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     using SafeERC20 for IERC20;
 
     string public constant VERSION = "1.0.0";
@@ -162,6 +162,7 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
         boosted[_from] -= _boosted;
         locked[to_] += _locked;
         boosted[to_] += _boosted;
+        _moveVotingPower(delegates[_from], delegates[to_], _locked + _boosted);
 
         emit Transfer(_from, to_, _boosted);
     }
@@ -207,6 +208,7 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
         boosted[_account] -= _boosted;
         totalBoosted -= _boosted;
 
+        _moveVotingPower(delegates[_account], address(0), _locked + _boosted);
         uint256 _toTransfer = _locked;
 
         if (!_isExpired && exitPenalty > 0) {
@@ -230,6 +232,17 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
     function _calculateExitPenalty(LockPosition memory _position) private view returns (uint256 _penalty) {
         uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _getLockedPeriodOf(_position);
         return (((_position.lockedAmount * exitPenalty) / 1e18) * _progress) / 1e18;
+    }
+
+    function _delegate(address delegator, address delegatee) internal override {
+        address currentDelegate = delegates[delegator];
+        // voting power = boosted VSP + actual locked VSP.
+        uint256 delegatorBalance = locked[delegator] + boosted[delegator];
+        delegates[delegator] = delegatee;
+
+        emit DelegateChanged(delegator, currentDelegate, delegatee);
+
+        _moveVotingPower(currentDelegate, delegatee, delegatorBalance);
     }
 
     /**
@@ -291,6 +304,7 @@ contract ESVSP is ReentrancyGuard, Governable, ESVSPStorageV1 {
         boosted[to_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
+        _moveVotingPower(address(0), delegates[to_], _lockedAmount + _boostedAmount);
 
         uint256 _tokenId = esVSP721.mint(to_);
 
