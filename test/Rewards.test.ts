@@ -32,7 +32,6 @@ const {VSP_ADDRESS, USDC_ADDRESS, WETH_ADDRESS} = Address
 describe('Rewards', function () {
   let snapshotId: string
   let deployer: SignerWithAddress
-  let treasury: SignerWithAddress
   let governor: SignerWithAddress
   let distributor: SignerWithAddress
   let alice: SignerWithAddress
@@ -48,7 +47,7 @@ describe('Rewards', function () {
   beforeEach(async function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
-    ;[deployer, governor, treasury, distributor, alice, bob, carl] = await ethers.getSigners()
+    ;[deployer, governor, distributor, alice, bob, carl] = await ethers.getSigners()
 
     const {
       ESVSP: {address: esVSPAddress},
@@ -614,8 +613,8 @@ describe('Rewards', function () {
         await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, true)
         // bob locks VSP
         await esVsp.connect(bob).lock(parseEther('100'), YEAR.div('2'))
-        expect(await esVsp.balanceOf(alice.address)).eq(parseEther('200'))
-        expect(await esVsp.balanceOf(bob.address)).eq(parseEther('100'))
+        expect(await esVsp.balanceOf(alice.address)).eq(parseEther('300'))
+        expect(await esVsp.balanceOf(bob.address)).eq(parseEther('200'))
         // distribute new reward tokens
         await usdc.connect(distributor).approve(rewards.address, ethers.constants.MaxUint256)
         // total of 30 (~1 token per day)

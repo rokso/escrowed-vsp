@@ -113,7 +113,7 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
 
     function _delegate(address delegator, address delegatee) internal virtual;
 
-    function _moveVotingPower(
+    function _moveDelegates(
         address srcRep,
         address dstRep,
         uint256 amount
