@@ -1,13 +1,7 @@
 import {HardhatUserConfig} from 'hardhat/types'
-import '@nomiclabs/hardhat-waffle'
-import '@nomiclabs/hardhat-ethers'
-import '@nomiclabs/hardhat-etherscan'
-import 'solidity-coverage'
+import '@nomicfoundation/hardhat-toolbox'
 import 'hardhat-deploy'
-import 'hardhat-log-remover'
-import 'hardhat-gas-reporter'
 import 'hardhat-contract-sizer'
-import '@typechain/hardhat'
 import 'hardhat-spdx-license-identifier'
 import dotenv from 'dotenv'
 import './tasks/create-release'
@@ -78,6 +72,9 @@ const config: HardhatUserConfig = {
   mocha: {
     timeout: 200000,
   },
+  typechain: {
+    outDir: 'typechain',
+  }
 }
 
 export default config
