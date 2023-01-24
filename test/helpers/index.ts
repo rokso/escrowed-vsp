@@ -6,6 +6,7 @@ import {ethers, network} from 'hardhat'
 export const VSP_HOLDER = '0xba4cfe5741b357fa371b506e5db0774abfecf8fc'
 export const WETH_HOLDER = '0x2f0b23f53734252bda2277357e97e1517d6b042a'
 export const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
+export const VSP_DISTRIBUTOR = '0xcc4ba6Ef2aC12FA5932ef584ebc4a762FE970919'
 
 export const MINUTE = BigNumber.from(60)
 export const HOUR = MINUTE.mul(60)
