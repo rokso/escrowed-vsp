@@ -20,7 +20,7 @@
     "fork": "hardhat node --no-deploy",
     "release": "hardhat create-release",
     "pretest": "hardhat typechain",
-    "test": "hardhat test --parallel",
+    "test": "hardhat test",
     "verify": "hardhat etherscan-verify",
     "size-contract": "hardhat size-contracts",
     "prepare": "husky install"
