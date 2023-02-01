@@ -4,6 +4,7 @@ pragma solidity 0.8.9;
 
 import "./dependencies/@openzeppelin/security/ReentrancyGuard.sol";
 import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import "./interface/external/IVSP.sol";
 import "./access/Governable.sol";
 import "./GovernanceToken.sol";
 
@@ -11,10 +12,10 @@ import "./GovernanceToken.sol";
  * @title Non-transferable escrowed VSP.
  */
 contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IVSP;
 
     string public constant VERSION = "1.0.0";
-    IERC20 public constant VSP = IERC20(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
+    IVSP public constant VSP = IVSP(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
     uint256 public constant MINIMUM_LOCK_PERIOD = 7 days;
     uint256 public constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
     uint256 public constant MAXIMUM_BOOST = 4;
@@ -49,6 +50,8 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         esVSP721 = esVSP721_;
         exitPenalty = 0.5e18; // 50%;
         treasury = treasury_;
+
+        VSP.delegate(address(this));
     }
 
     /**
@@ -117,11 +120,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
      * @param amount_ The VSP amount to lock
      * @param lockPeriod_ The lock period
      */
-    function lockFor(
-        address to_,
-        uint256 amount_,
-        uint256 lockPeriod_
-    ) external override nonReentrant {
+    function lockFor(address to_, uint256 amount_, uint256 lockPeriod_) external override nonReentrant {
         _updateReward(to_);
         _lock(to_, amount_, lockPeriod_);
     }
@@ -154,7 +153,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[_from] -= _boosted;
         locked[to_] += _locked;
         boosted[to_] += _boosted;
-        _moveDelegates(delegates[_from], delegates[to_], _locked + _boosted);
+        _moveVotingPower(_delegates[_from], _delegates[to_], _locked + _boosted);
 
         emit Transfer(_from, to_, _boosted);
     }
@@ -175,11 +174,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
      * @param onlyIfExpired_ When `true` revert if didn't reach unlockTime
      * @param _account The account to burn position from
      */
-    function _burn(
-        uint256 tokenId_,
-        bool onlyIfExpired_,
-        address _account
-    ) private {
+    function _burn(uint256 tokenId_, bool onlyIfExpired_, address _account) private {
         LockPosition memory _position = positions[tokenId_];
         uint256 _unlockTime = _position.unlockTime;
 
@@ -200,7 +195,9 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[_account] -= _boosted;
         totalBoosted -= _boosted;
 
-        _moveDelegates(delegates[_account], address(0), _locked + _boosted);
+        uint256 _delta = _locked + _boosted;
+        _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _delta);
+        _moveVotingPower(_delegates[_account], address(0), _delta);
         uint256 _toTransfer = _locked;
 
         if (!_isExpired && exitPenalty > 0) {
@@ -227,11 +224,11 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     }
 
     function _delegate(address delegator, address delegatee) internal override {
-        address currentDelegate = delegates[delegator];
-        delegates[delegator] = delegatee;
+        address currentDelegate = _delegates[delegator];
+        _delegates[delegator] = delegatee;
         emit DelegateChanged(delegator, currentDelegate, delegatee);
 
-        _moveDelegates(currentDelegate, delegatee, balanceOf(delegator));
+        _moveVotingPower(currentDelegate, delegatee, balanceOf(delegator));
     }
 
     /**
@@ -274,11 +271,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
      * @param amount_ The VSP amount to lock
      * @param lockPeriod_ The lock period
      */
-    function _lock(
-        address to_,
-        uint256 amount_,
-        uint256 lockPeriod_
-    ) internal {
+    function _lock(address to_, uint256 amount_, uint256 lockPeriod_) internal {
         require(amount_ > 0, "amount-is-zero");
         require(lockPeriod_ > MINIMUM_LOCK_PERIOD, "lock-period-lt-minimum");
         require(lockPeriod_ <= MAXIMUM_LOCK_PERIOD, "lock-period-gt-maximum");
@@ -293,7 +286,10 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[to_] += _boostedAmount;
         totalLocked += _lockedAmount;
         totalBoosted += _boostedAmount;
-        _moveDelegates(address(0), delegates[to_], _lockedAmount + _boostedAmount);
+
+        uint256 _delta = _lockedAmount + _boostedAmount;
+        _writeCheckpoint(_totalSupplyCheckpoints, _add, _delta);
+        _moveVotingPower(address(0), _delegates[to_], _delta);
 
         uint256 _tokenId = esVSP721.mint(to_);
 
@@ -364,44 +360,29 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
 
     /** Methods not supported **/
 
-    function allowance(
-        address, /*owner*/
-        address /*spender*/
-    ) public view virtual override returns (uint256) {
+    function allowance(address /*owner*/, address /*spender*/) public view virtual override returns (uint256) {
         revert("allowance-not-supported");
     }
 
-    function approve(
-        address, /*spender*/
-        uint256 /*amount*/
-    ) public virtual override returns (bool) {
+    function approve(address /*spender*/, uint256 /*amount*/) public virtual override returns (bool) {
         revert("approval-not-supported");
     }
 
-    function decreaseAllowance(
-        address, /*spender*/
-        uint256 /*subtractedValue*/
-    ) public virtual returns (bool) {
+    function decreaseAllowance(address /*spender*/, uint256 /*subtractedValue*/) public virtual returns (bool) {
         revert("allowance-not-supported");
     }
 
-    function increaseAllowance(
-        address, /*spender*/
-        uint256 /*addedValue*/
-    ) public virtual returns (bool) {
+    function increaseAllowance(address /*spender*/, uint256 /*addedValue*/) public virtual returns (bool) {
         revert("allowance-not-supported");
     }
 
-    function transfer(
-        address, /*recipient*/
-        uint256 /*amount*/
-    ) public virtual override returns (bool) {
+    function transfer(address /*recipient*/, uint256 /*amount*/) public virtual override returns (bool) {
         revert("transfer-not-supported");
     }
 
     function transferFrom(
-        address, /*sender*/
-        address, /*recipient*/
+        address /*sender*/,
+        address /*recipient*/,
         uint256 /*amount*/
     ) public virtual override returns (bool) {
         revert("transfer-not-supported");

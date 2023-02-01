@@ -66,11 +66,6 @@ abstract contract ESVSPStorageV1 is IESVSP {
     mapping(address => uint256) public override boosted;
 
     /**
-     * @notice A record of each accounts delegate
-     */
-    mapping(address => address) public delegates;
-
-    /**
      * @notice A checkpoint for marking number of votes from a given block
      */
     struct Checkpoint {
@@ -79,14 +74,16 @@ abstract contract ESVSPStorageV1 is IESVSP {
     }
 
     /**
-     * @notice A record of votes checkpoints for each account, by index
+     * @dev A record of each accounts delegate
      */
-    mapping(address => mapping(uint32 => Checkpoint)) public checkpoints;
+    mapping(address => address) internal _delegates;
 
     /**
-     * @notice The number of checkpoints for each account
+     * @dev A record of votes checkpoints for each account
      */
-    mapping(address => uint32) public numCheckpoints;
+    mapping(address => Checkpoint[]) internal _checkpoints;
+
+    Checkpoint[] internal _totalSupplyCheckpoints;
 
     /**
      * @notice A record of states for signing / validating signatures
