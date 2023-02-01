@@ -191,7 +191,7 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
     }
 
     /**
-     * @dev Comp version of the {getVotes} accessor,but  with `uint256` return type.
+     * @dev Comp version of the {getVotes} accessor, but with `uint256` return type.
      */
     function getCurrentVotes(address account) external view virtual returns (uint256) {
         return getVotes(account);
