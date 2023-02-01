@@ -131,9 +131,9 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         address signatory = ecrecover(digest, v, r, s);
-        require(signatory != address(0), "ESMET::delegateBySig: invalid signature");
-        require(nonce == nonces[signatory]++, "ESMET::delegateBySig: invalid nonce");
-        require(block.timestamp <= expiry, "ESMET::delegateBySig: signature expired");
+        require(signatory != address(0), "ESVSP::delegateBySig: invalid signature");
+        require(nonce == nonces[signatory]++, "ESVSP::delegateBySig: invalid nonce");
+        require(block.timestamp <= expiry, "ESVSP::delegateBySig: signature expired");
         return _delegate(signatory, delegatee);
     }
 
@@ -191,30 +191,23 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
     }
 
     /**
-     * @dev Comp version of the {getVotes} accessor, with `uint96` return type.
+     * @dev Comp version of the {getVotes} accessor,but  with `uint256` return type.
      */
-    function getCurrentVotes(address account) external view virtual returns (uint96) {
-        return SafeCast.toUint96(getVotes(account));
+    function getCurrentVotes(address account) external view virtual returns (uint256) {
+        return getVotes(account);
     }
 
     /**
-     * @dev Comp version of the {getPastVotes} accessor, with `uint96` return type.
+     * @dev Comp version of the {getPastVotes} accessor, but with `uint256` return type.
      */
-    function getPriorVotes(address account, uint256 blockNumber) external view virtual returns (uint96) {
-        return SafeCast.toUint96(getPastVotes(account, blockNumber));
+    function getPriorVotes(address account, uint256 blockNumber) external view virtual returns (uint256) {
+        return getPastVotes(account, blockNumber);
     }
 
     /**
-     * @dev Using COMP naming for `getPastTotalSupply`
+     * @dev Using Comp naming for `getPastTotalSupply`
      */
     function getPriorTotalSupply(uint256 blockNumber) external view virtual returns (uint256) {
         return getPastTotalSupply(blockNumber);
-    }
-
-    /**
-     * @dev Maximum token supply. Reduced to `type(uint96).max` (2^96^ - 1) to fit COMP interface.
-     */
-    function _maxSupply() internal view virtual returns (uint224) {
-        return type(uint96).max;
     }
 }
