@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.9;
 
-import "./dependencies/@openzeppelin/token/ERC721/extensions/ERC721Enumerable.sol";
+import "./dependencies/@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "./access/Governable.sol";
 import "./storage/ESVSP721Storage.sol";
 import "./interface/IESVSP721.sol";
@@ -49,11 +49,7 @@ contract ESVSP721 is IESVSP721, Governable, ERC721Enumerable, ESVSP721StorageV1 
     /**
      * @notice Transfer position (locked/boosted) when transferring the NFT
      */
-    function _beforeTokenTransfer(
-        address from_,
-        address to_,
-        uint256 tokenId_
-    ) internal override {
+    function _beforeTokenTransfer(address from_, address to_, uint256 tokenId_) internal override {
         super._beforeTokenTransfer(from_, to_, tokenId_);
 
         if (from_ != address(0) && to_ != address(0)) {

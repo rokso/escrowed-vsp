@@ -2,10 +2,10 @@
 
 pragma solidity 0.8.9;
 
-import "./dependencies/@openzeppelin/security/ReentrancyGuard.sol";
-import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
-import "./dependencies/@openzeppelin/utils/math/Math.sol";
-import "./dependencies/@openzeppelin/utils/math/SafeCast.sol";
+import "./dependencies/@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./dependencies/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./dependencies/@openzeppelin/contracts/utils/math/Math.sol";
+import "./dependencies/@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./access/Governable.sol";
 import "./storage/RewardsStorage.sol";
 
@@ -45,12 +45,9 @@ contract Rewards is ReentrancyGuard, Governable, RewardsStorageV1 {
      * @return _rewardTokens The addresses of the reward tokens
      * @return _claimableAmounts The claimable amounts
      */
-    function claimableRewards(address account_)
-        external
-        view
-        override
-        returns (address[] memory _rewardTokens, uint256[] memory _claimableAmounts)
-    {
+    function claimableRewards(
+        address account_
+    ) external view override returns (address[] memory _rewardTokens, uint256[] memory _claimableAmounts) {
         uint256 _len = rewardTokens.length;
 
         _rewardTokens = new address[](_len);
@@ -154,11 +151,7 @@ contract Rewards is ReentrancyGuard, Governable, RewardsStorageV1 {
      * @param account_ The account
      * @param reward_ The reward amount
      */
-    function _claimReward(
-        address rewardToken_,
-        address account_,
-        uint256 reward_
-    ) private {
+    function _claimReward(address rewardToken_, address account_, uint256 reward_) private {
         rewardOf[rewardToken_][account_].claimableRewardsStored = 0;
         IERC20(rewardToken_).safeTransfer(account_, reward_);
         emit RewardPaid(account_, rewardToken_, reward_);
@@ -196,11 +189,10 @@ contract Rewards is ReentrancyGuard, Governable, RewardsStorageV1 {
     /**
      * @notice Get supply and balance for reference (i.e. locked or boosted)
      */
-    function _getSupplyAndBalance(address rewardToken_, address account_)
-        private
-        view
-        returns (uint256 _totalSupply, uint256 _userBalance)
-    {
+    function _getSupplyAndBalance(
+        address rewardToken_,
+        address account_
+    ) private view returns (uint256 _totalSupply, uint256 _userBalance) {
         if (rewards[rewardToken_].isBoosted) {
             _totalSupply = esVSP.totalBoosted();
             _userBalance = esVSP.boosted(account_);
@@ -234,12 +226,7 @@ contract Rewards is ReentrancyGuard, Governable, RewardsStorageV1 {
      * @param totalSupply_ The supply of reference (boosted or locked)
      * @param balance_ The balance of reference (boosted or locked)
      */
-    function _updateReward(
-        address rewardToken_,
-        address account_,
-        uint256 totalSupply_,
-        uint256 balance_
-    ) private {
+    function _updateReward(address rewardToken_, address account_, uint256 totalSupply_, uint256 balance_) private {
         uint256 _rewardPerTokenStored = _rewardPerToken(rewardToken_, totalSupply_);
         Reward storage _reward = rewards[rewardToken_];
         _reward.rewardPerTokenStored = _rewardPerTokenStored;
@@ -276,11 +263,7 @@ contract Rewards is ReentrancyGuard, Governable, RewardsStorageV1 {
      * @param distributor_  Authorized called to call dripRewardAmount
      * @param isBoosted_ If reward token is boosted than rewards is distributed on boost amount depends on lock period
      */
-    function addRewardToken(
-        address rewardsToken_,
-        address distributor_,
-        bool isBoosted_
-    ) external onlyGovernor {
+    function addRewardToken(address rewardsToken_, address distributor_, bool isBoosted_) external onlyGovernor {
         require(rewards[rewardsToken_].lastUpdateTime == 0, "reward-already-added");
         rewards[rewardsToken_] = Reward({
             isBoosted: isBoosted_,

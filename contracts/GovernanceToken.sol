@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.9;
 
-import "./dependencies/@openzeppelin/utils/math/Math.sol";
-import "./dependencies/@openzeppelin/utils/math/SafeCast.sol";
+import "./dependencies/@openzeppelin/contracts/utils/math/Math.sol";
+import "./dependencies/@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./storage/ESVSPStorage.sol";
 
 // solhint-disable reason-string, no-empty-blocks

@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.9;
 
-import "../dependencies/@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
+import "../dependencies/@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./IRewards.sol";
 
 interface IESVSP is IERC20Metadata {
@@ -16,11 +16,7 @@ interface IESVSP is IERC20Metadata {
 
     function lock(uint256 amount_, uint256 lockPeriod_) external;
 
-    function lockFor(
-        address to_,
-        uint256 amount_,
-        uint256 lockPeriod_
-    ) external;
+    function lockFor(address to_, uint256 amount_, uint256 lockPeriod_) external;
 
     function updateExitPenalty(uint256 exitPenalty_) external;
 
