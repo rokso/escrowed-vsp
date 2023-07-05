@@ -49,8 +49,8 @@ contract ESVSP721 is IESVSP721, Governable, ERC721Enumerable, ESVSP721StorageV1 
     /**
      * @notice Transfer position (locked/boosted) when transferring the NFT
      */
-    function _beforeTokenTransfer(address from_, address to_, uint256 tokenId_) internal override {
-        super._beforeTokenTransfer(from_, to_, tokenId_);
+    function _beforeTokenTransfer(address from_, address to_, uint256 tokenId_, uint256 batchSize) internal override {
+        super._beforeTokenTransfer(from_, to_, tokenId_, batchSize);
 
         if (from_ != address(0) && to_ != address(0)) {
             esVSP.transferPosition(tokenId_, to_);
