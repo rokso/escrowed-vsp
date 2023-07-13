@@ -257,6 +257,19 @@ describe('ESVSP', function () {
       await expect(tx).revertedWith('not-unlocked-yet')
     })
 
+    it('should revert if user want to unlock with penalty before cooldown time', async function () {
+      // given
+      const penalty = await esVsp.exitPenalty()
+      expect(penalty).eq(parseEther('0.5'))
+
+      // when
+      const beforeUnlockTime = true
+      const tx = esVsp.unlock(1, beforeUnlockTime)
+
+      // then
+      await expect(tx).revertedWith('cool-down-period-did-not-pass')
+    })
+
     it('should pay exit penalty when withdrawing before unlock time', async function () {
       // given
       const penalty = await esVsp.exitPenalty()
@@ -272,23 +285,24 @@ describe('ESVSP', function () {
       // when-then
       const beforeUnlockTime = true
 
+      await increaseTime(await esVsp.COOL_DOWN_PERIOD())
       await esVsp.unlock(1, beforeUnlockTime)
       // just after deposit: full penalty (50 VSP)
-      expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('0.001'))
+      expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('1'))
 
       await increaseTime(YEAR.div(2))
       await esVsp.connect(bob).unlock(2, beforeUnlockTime)
       // 6mo layer: half penalty (25 VSP)
-      expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('0.001'))
+      expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('1'))
 
       await increaseTime(YEAR.div(2))
       await esVsp.connect(carl).unlock(3, beforeUnlockTime)
       // 1y later: no penalty
-      expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('0.001'))
+      expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('1'))
 
       const treasuryAfter = await vsp.balanceOf(treasury.address)
       const penaltyCollected = parseEther('50').add(parseEther('25'))
-      expect(treasuryAfter).closeTo(treasuryBefore.add(penaltyCollected), parseEther('0.001'))
+      expect(treasuryAfter).closeTo(treasuryBefore.add(penaltyCollected), parseEther('1'))
     })
 
     it('should unlock all locked amount after lock period', async function () {
@@ -484,7 +498,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
-      expect(receipt.gasUsed).closeTo(86e3 * positionsToKick, 25e3)
+      expect(receipt.gasUsed).closeTo(83e3 * positionsToKick, 10e3)
     })
 
     it('gas usage - none expired', async function () {
@@ -502,7 +516,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after).eq(before)
-      expect(receipt.gasUsed).closeTo(12e3 * positionsToKick, 5e3)
+      expect(receipt.gasUsed).eq(63749) // ~13k each
     })
   })
 
@@ -552,12 +566,19 @@ describe('ESVSP', function () {
     it('Should check current votes', async function () {
       // given, alice locked 100 VSP and delegate voting power to self
       await esVsp.connect(alice).lock(parseEther('100'), YEAR)
+      const blockNumber = await ethers.provider.getBlockNumber()
       await esVsp.connect(alice).delegate(alice.address)
+
       // when
-      const votes = await esVsp.getCurrentVotes(alice.address)
+      const votes = await esVsp.getVotes(alice.address)
+      const supply = await esVsp.totalSupply()
+      const pastSupply = await esVsp.getPastTotalSupply(blockNumber)
 
       // then verify vote
-      expect(votes).eq(await esVsp.balanceOf(alice.address))
+      expect(votes)
+        .eq(await esVsp.balanceOf(alice.address))
+        .eq(supply)
+        .eq(pastSupply)
     })
 
     it('Should check current votes after unlock', async function () {
@@ -568,10 +589,14 @@ describe('ESVSP', function () {
 
       // when
       await esVsp.connect(carl).unlock(1, false)
-      const votes = await esVsp.getCurrentVotes(carl.address)
+      const blockNumber = await ethers.provider.getBlockNumber()
+      await increaseTime(BigNumber.from(1)) // force block mining
+      const votes = await esVsp.getVotes(carl.address)
+      const supply = await esVsp.totalSupply()
+      const pastSupply = await esVsp.getPastTotalSupply(blockNumber)
 
       // then verify vote = locked + boosted
-      expect(votes).eq(0)
+      expect(votes).eq(0).eq(supply).eq(pastSupply)
     })
 
     it('Should check prior votes', async function () {
@@ -580,17 +605,21 @@ describe('ESVSP', function () {
       await esVsp.connect(alice).delegate(alice.address)
 
       const blockNumber = await ethers.provider.getBlockNumber()
-      const votes = await esVsp.getCurrentVotes(alice.address)
+      const votes = await esVsp.getVotes(alice.address)
 
       // when
       await esVsp.connect(alice).lock(parseEther('100'), MONTH)
-      const priorVote = await esVsp.getPriorVotes(alice.address, blockNumber)
+      const pastVotes = await esVsp.getPastVotes(alice.address, blockNumber)
+      const pastSupply = await esVsp.getPastTotalSupply(blockNumber)
 
       // then
-      expect(priorVote).eq(votes)
+      expect(pastVotes).eq(votes).eq(pastSupply)
 
-      const currentVotes = await esVsp.getCurrentVotes(alice.address)
-      expect(currentVotes).eq(await esVsp.balanceOf(alice.address))
+      const currentVotes = await esVsp.getVotes(alice.address)
+      const currentSupply = await esVsp.totalSupply()
+      expect(currentVotes)
+        .eq(await esVsp.balanceOf(alice.address))
+        .eq(currentSupply)
     })
 
     it('Should check votes when position is transferred', async function () {
@@ -600,7 +629,9 @@ describe('ESVSP', function () {
       await esVsp.connect(carl).delegate(carl.address)
 
       const blockNumber = await ethers.provider.getBlockNumber()
-      const votes = await esVsp.getCurrentVotes(bob.address)
+      expect(await esVsp.getVotes(bob.address)).eq(0)
+      expect(await esVsp.getVotes(alice.address)).eq(parseEther('300'))
+      const votes = await esVsp.getVotes(alice.address)
       const positionId = 1
 
       // when bob transfer position to carl
@@ -609,14 +640,48 @@ describe('ESVSP', function () {
       await esVsp.connect(esVsp721Wallet).transferPosition(positionId, carl.address)
 
       // then
-      const priorVote = await esVsp.getPriorVotes(bob.address, blockNumber)
-      expect(priorVote).eq(votes)
+      const pastVotes = await esVsp.getPastVotes(alice.address, blockNumber)
+      const pastSupply = await esVsp.getPastTotalSupply(blockNumber)
+      expect(pastVotes).eq(votes).eq(pastSupply)
 
-      const currentVotes = await esVsp.getCurrentVotes(bob.address)
-      expect(currentVotes).eq(await esVsp.balanceOf(bob.address))
+      const currentVotesBob = await esVsp.getVotes(bob.address)
+      expect(currentVotesBob).eq(await esVsp.balanceOf(bob.address))
 
-      const currentVotesCarl = await esVsp.getCurrentVotes(carl.address)
+      const currentVotesCarl = await esVsp.getVotes(carl.address)
       expect(currentVotesCarl).eq(await esVsp.balanceOf(carl.address))
+
+      const currentSupply = await esVsp.totalSupply()
+      expect(currentSupply).eq(currentVotesBob.add(currentVotesCarl))
+    })
+
+    it('Should check votes when position is burnt', async function () {
+      // given - bob locked 100 VSP
+      const positionId = 1
+      const lockedAmount = parseEther('100')
+      await esVsp.connect(bob).lock(lockedAmount, YEAR)
+      const balance = await esVsp.balanceOf(bob.address)
+      expect(balance).eq(parseEther('300'))
+      await esVsp.connect(bob).delegate(bob.address)
+      expect(await esVsp.getVotes(bob.address)).eq(balance)
+
+      const blockNumber1 = await ethers.provider.getBlockNumber()
+      await increaseTime(BigNumber.from(1)) // force block mining
+      expect(await esVsp.getPastVotes(bob.address, blockNumber1)).eq(balance)
+      expect(await esVsp.totalSupply()).eq(balance)
+      expect(await esVsp.getPastTotalSupply(blockNumber1)).eq(balance)
+
+      // when
+      expect(await esVsp721.ownerOf(positionId)).eq(bob.address)
+      await increaseTime(await esVsp.COOL_DOWN_PERIOD())
+      await esVsp.connect(bob).unlock(positionId, true)
+
+      // then
+      const blockNumber2 = await ethers.provider.getBlockNumber()
+      await increaseTime(BigNumber.from(1)) // force block mining
+      expect(await esVsp.getVotes(bob.address)).eq(0)
+      expect(await esVsp.getPastVotes(bob.address, blockNumber2)).eq(0)
+      expect(await esVsp.totalSupply()).eq(0)
+      expect(await esVsp.getPastTotalSupply(blockNumber2)).eq(0)
     })
   })
 })

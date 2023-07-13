@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.9;
 
-import "./dependencies/@openzeppelin/security/ReentrancyGuard.sol";
-import "./dependencies/@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import "./dependencies/@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./dependencies/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interface/external/IVSP.sol";
 import "./access/Governable.sol";
 import "./GovernanceToken.sol";
@@ -19,6 +19,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     uint256 public constant MINIMUM_LOCK_PERIOD = 7 days;
     uint256 public constant MAXIMUM_LOCK_PERIOD = 2 * 365 days;
     uint256 public constant MAXIMUM_BOOST = 4;
+    uint256 public constant COOL_DOWN_PERIOD = 24 hours;
 
     /// Emitted when a new position is created (i.e. when user locks VSP)
     event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
@@ -183,6 +184,9 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         if (onlyIfExpired_) {
             require(_isExpired, "not-unlocked-yet");
         }
+
+        uint256 _lockTime = _unlockTime - _getLockedPeriodOf(_position);
+        require(block.timestamp > _lockTime + COOL_DOWN_PERIOD, "cool-down-period-did-not-pass");
 
         uint256 _locked = _position.lockedAmount;
         uint256 _boosted = _position.boostedAmount;

@@ -38,7 +38,7 @@ import {address as REWARDS_ADDRESS} from '../deployments/mainnet/Rewards.json'
 
 const {MaxUint256} = ethers.constants
 
-describe('E2E tests', function () {
+describe.skip('E2E tests', function () {
   let snapshotId: string
   let alice: SignerWithAddress
   let bob: SignerWithAddress

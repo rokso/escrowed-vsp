@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.9;
 
-import "./dependencies/@openzeppelin/utils/math/Math.sol";
-import "./dependencies/@openzeppelin/utils/math/SafeCast.sol";
+import "./dependencies/@openzeppelin/contracts/utils/math/Math.sol";
+import "./dependencies/@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./storage/ESVSPStorage.sol";
 
 // solhint-disable reason-string, no-empty-blocks
@@ -46,7 +46,7 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
     /**
      * @dev Gets the current votes balance for `account`
      */
-    function getVotes(address account) public view returns (uint256) {
+    function getVotes(address account) external view returns (uint256) {
         uint256 pos = _checkpoints[account].length;
         return pos == 0 ? 0 : _checkpoints[account][pos - 1].votes;
     }
@@ -58,7 +58,7 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
      *
      * - `blockNumber` must have been already mined
      */
-    function getPastVotes(address account, uint256 blockNumber) public view virtual returns (uint256) {
+    function getPastVotes(address account, uint256 blockNumber) external view virtual returns (uint256) {
         require(blockNumber < block.number, "ERC20Votes: block not yet mined");
         return _checkpointsLookup(_checkpoints[account], blockNumber);
     }
@@ -71,7 +71,7 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
      *
      * - `blockNumber` must have been already mined
      */
-    function getPastTotalSupply(uint256 blockNumber) public view virtual returns (uint256) {
+    function getPastTotalSupply(uint256 blockNumber) external view virtual returns (uint256) {
         require(blockNumber < block.number, "ERC20Votes: block not yet mined");
         return _checkpointsLookup(_totalSupplyCheckpoints, blockNumber);
     }
@@ -188,26 +188,5 @@ abstract contract GovernanceToken is ESVSPStorageV1 {
             chainId := chainid()
         }
         return chainId;
-    }
-
-    /**
-     * @dev Comp version of the {getVotes} accessor, but with `uint256` return type.
-     */
-    function getCurrentVotes(address account) external view virtual returns (uint256) {
-        return getVotes(account);
-    }
-
-    /**
-     * @dev Comp version of the {getPastVotes} accessor, but with `uint256` return type.
-     */
-    function getPriorVotes(address account, uint256 blockNumber) external view virtual returns (uint256) {
-        return getPastVotes(account, blockNumber);
-    }
-
-    /**
-     * @dev Using Comp naming for `getPastTotalSupply`
-     */
-    function getPriorTotalSupply(uint256 blockNumber) external view virtual returns (uint256) {
-        return getPastTotalSupply(blockNumber);
     }
 }

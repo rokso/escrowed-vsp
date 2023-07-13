@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.9;
 
-import "../dependencies/@openzeppelin/proxy/transparent/ProxyAdmin.sol";
-import "../dependencies/@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "../dependencies/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "../dependencies/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "../interface/external/IMulticall.sol";
 
 abstract contract UpgraderBase is ProxyAdmin {
@@ -34,10 +34,10 @@ abstract contract UpgraderBase is ProxyAdmin {
         _checkResults(beforeResults, afterResults);
     }
 
-    function _aggregate(TransparentUpgradeableProxy _proxy, bytes[] memory _callDatas)
-        internal
-        returns (bytes[] memory results)
-    {
+    function _aggregate(
+        TransparentUpgradeableProxy _proxy,
+        bytes[] memory _callDatas
+    ) internal returns (bytes[] memory results) {
         uint256 _length = _callDatas.length;
         IMulticall.Call[] memory calls = new IMulticall.Call[](_length);
         for (uint256 i; i < _length; i++) {
