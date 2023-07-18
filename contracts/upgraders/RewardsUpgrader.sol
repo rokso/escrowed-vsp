@@ -9,12 +9,8 @@ contract RewardsUpgrader is UpgraderBase {
         transferOwnership(_owner);
     }
 
-    function _calls() internal pure override returns (bytes[] memory calls) {
-        calls = new bytes[](1);
-        calls[0] = abi.encodeWithSignature("esVSP()");
-    }
-
-    function _checkResults(bytes[] memory _beforeResults, bytes[] memory _afterResults) internal pure override {
-        _checkAddressResults(_beforeResults, _afterResults, 0, 0);
+    function _calls() internal pure override returns (bytes[] memory _callsList) {
+        _callsList = new bytes[](1);
+        _callsList[0] = abi.encodeWithSignature("esVSP()");
     }
 }
