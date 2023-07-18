@@ -32,9 +32,9 @@ import {
   IERC20__factory,
 } from '../typechain'
 
-import {address as ESVSP_ADDRESS} from '../deployments/mainnet/ESVSP.json'
-import {address as ESVSP721_ADDRESS} from '../deployments/mainnet/ESVSP721.json'
-import {address as REWARDS_ADDRESS} from '../deployments/mainnet/Rewards.json'
+import {address as ESVSP_ADDRESS} from '../deployments/alpha/mainnet/ESVSP.json'
+import {address as ESVSP721_ADDRESS} from '../deployments/alpha/mainnet/ESVSP721.json'
+import {address as REWARDS_ADDRESS} from '../deployments/alpha/mainnet/Rewards.json'
 
 const {MaxUint256} = ethers.constants
 
