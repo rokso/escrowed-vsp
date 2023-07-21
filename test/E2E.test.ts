@@ -32,13 +32,13 @@ import {
   IERC20__factory,
 } from '../typechain'
 
-import {address as ESVSP_ADDRESS} from '../deployments/alpha/mainnet/ESVSP.json'
-import {address as ESVSP721_ADDRESS} from '../deployments/alpha/mainnet/ESVSP721.json'
-import {address as REWARDS_ADDRESS} from '../deployments/alpha/mainnet/Rewards.json'
+import {address as ESVSP_ADDRESS} from '../deployments/mainnet/ESVSP.json'
+import {address as ESVSP721_ADDRESS} from '../deployments/mainnet/ESVSP721.json'
+import {address as REWARDS_ADDRESS} from '../deployments/mainnet/Rewards.json'
 
 const {MaxUint256} = ethers.constants
 
-describe.skip('E2E tests', function () {
+describe('E2E tests', function () {
   let snapshotId: string
   let alice: SignerWithAddress
   let bob: SignerWithAddress
@@ -57,7 +57,7 @@ describe.skip('E2E tests', function () {
     esVsp721 = ESVSP721__factory.connect(ESVSP721_ADDRESS, alice)
     rewards = Rewards__factory.connect(REWARDS_ADDRESS, alice)
     vsp = IERC20__factory.connect(Address.VSP_ADDRESS, alice)
-    rewardToken = await rewards.rewardTokens(0) // VSP rewards
+    rewardToken = vsp.address
   }
 
   beforeEach(async function () {
@@ -65,9 +65,9 @@ describe.skip('E2E tests', function () {
     snapshotId = await ethers.provider.send('evm_snapshot', [])
     distributor = await impersonateAccount(VSP_DISTRIBUTOR)
     const vspHolder = await impersonateAccount(VSP_HOLDER)
-    await vsp.connect(vspHolder).transfer(alice.address, parseEther('1000000'))
-    await vsp.connect(vspHolder).transfer(bob.address, parseEther('1000000'))
-    await vsp.connect(vspHolder).transfer(carl.address, parseEther('1000000'))
+    await vsp.connect(vspHolder).transfer(alice.address, parseEther('100000'))
+    await vsp.connect(vspHolder).transfer(bob.address, parseEther('100000'))
+    await vsp.connect(vspHolder).transfer(carl.address, parseEther('100000'))
     await vsp.connect(vspHolder).transfer(distributor.address, parseEther('1000000'))
 
     await vsp.approve(esVsp.address, MaxUint256)
@@ -86,7 +86,6 @@ describe.skip('E2E tests', function () {
       expect(ESVSP_ADDRESS).eq(await esVsp721.esVSP())
       expect(ESVSP_ADDRESS).eq(await rewards.esVSP())
       expect(ESVSP721_ADDRESS).eq(await esVsp.esVSP721())
-      expect(Address.VSP_ADDRESS).eq(await rewards.rewardTokens(0))
       expect(Address.TREASURY_ADDRESS).eq(await esVsp.treasury())
     })
   })
@@ -107,16 +106,17 @@ describe.skip('E2E tests', function () {
     })
 
     it('should lock once by a user', async function () {
-      // when
+      // given
       const amount = parseEther('100')
       const period = YEAR
-      const tx = esVsp.lock(amount, period)
-
-      // then
       const expectedTokenId = await esVsp721.nextTokenId()
       const expectedBoostAmount = amount.mul(period).mul(maxBoost).div(maxPeriod)
       const expectedUnlockTime = BigNumber.from(await timestampFromLatestBlock()).add(period)
 
+      // when
+      const tx = esVsp.lock(amount, period)
+
+      // then
       // event
       await expect(tx).emit(esVsp, 'VspLocked').withArgs(expectedTokenId, alice.address, amount, period)
 
@@ -143,8 +143,8 @@ describe.skip('E2E tests', function () {
       expect(await esVsp721.balanceOf(alice.address)).eq(1)
 
       // erc20
-      expect(await esVsp.totalSupply()).eq(totalBoosted) // TODO This to be changed after contract deployment.
-      expect(await esVsp.balanceOf(alice.address)).eq(boosted) // TODO This to be changed after contract deployment.
+      expect(await esVsp.totalSupply()).eq(totalBoosted.add(totalLocked))
+      expect(await esVsp.balanceOf(alice.address)).eq(boosted.add(locked))
       expect(await esVsp.locked(alice.address)).eq(locked)
       expect(await esVsp.boosted(alice.address)).eq(boosted)
     })
@@ -232,35 +232,30 @@ describe.skip('E2E tests', function () {
       // given
       const penalty = await esVsp.exitPenalty()
       expect(penalty).eq(parseEther('0.5'))
+      const bobTokenId = await esVsp721.nextTokenId()
       await esVsp.connect(bob).lock(amount, period)
-      await esVsp.connect(carl).lock(amount, period)
 
       const treasuryBefore = await vsp.balanceOf(await esVsp.treasury())
       const aliceBefore = await vsp.balanceOf(alice.address)
       const bobBefore = await vsp.balanceOf(bob.address)
-      const carlBefore = await vsp.balanceOf(carl.address)
 
-      // when-then
       const beforeUnlockTime = true
-
-      await esVsp.unlock(tokenId, beforeUnlockTime)
-      // just after deposit: full penalty (50 VSP)
-      expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('50')), parseEther('0.001'))
-
+      // when
       await increaseTime(YEAR.div(2))
-      tokenId = tokenId.add(1)
-      await esVsp.connect(bob).unlock(tokenId, beforeUnlockTime)
-      // 6mo layer: half penalty (25 VSP)
-      expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(parseEther('75')), parseEther('0.001'))
+      await esVsp.connect(alice).unlock(tokenId, beforeUnlockTime)
+      // then
+      // 6mo later: half penalty i.e. 25% of deposit will be taken as fee(25 VSP)
+      expect(await vsp.balanceOf(alice.address)).closeTo(aliceBefore.add(parseEther('75')), parseEther('0.001'))
 
+      // when
       await increaseTime(YEAR.div(2))
-      tokenId = tokenId.add(1)
-      await esVsp.connect(carl).unlock(tokenId, beforeUnlockTime)
+      await esVsp.connect(bob).unlock(bobTokenId, beforeUnlockTime)
+      // then
       // 1y later: no penalty
-      expect(await vsp.balanceOf(carl.address)).closeTo(carlBefore.add(amount), parseEther('0.001'))
+      expect(await vsp.balanceOf(bob.address)).closeTo(bobBefore.add(amount), parseEther('0.001'))
 
       const treasuryAfter = await vsp.balanceOf(await esVsp.treasury())
-      const penaltyCollected = parseEther('50').add(parseEther('25'))
+      const penaltyCollected = parseEther('25')
       expect(treasuryAfter).closeTo(treasuryBefore.add(penaltyCollected), parseEther('0.001'))
     })
 
@@ -284,6 +279,7 @@ describe.skip('E2E tests', function () {
       expect(unlockTime).eq(0)
 
       const locked = await esVsp.locked(alice.address)
+      const totalLocked = await esVsp.totalLocked()
       expect(locked).eq(0)
 
       const boosted = await esVsp.boosted(alice.address)
@@ -299,7 +295,7 @@ describe.skip('E2E tests', function () {
       expect(await esVsp721.balanceOf(alice.address)).eq(0)
 
       // erc20
-      expect(await esVsp.totalSupply()).eq(totalBoosted) // TODO This to be changed after contract deployment.
+      expect(await esVsp.totalSupply()).eq(totalBoosted.add(totalLocked))
       expect(await esVsp.balanceOf(alice.address)).eq(boosted.add(locked))
       expect(await esVsp.locked(alice.address)).eq(locked)
       expect(await esVsp.boosted(alice.address)).eq(boosted)
@@ -308,6 +304,8 @@ describe.skip('E2E tests', function () {
 
   describe('drip rewards', function () {
     beforeEach(async function () {
+      const governor = await impersonateAccount(await rewards.governor())
+      await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, false)
       await esVsp.connect(alice).lock(parseEther('100'), YEAR)
       await rewards.connect(distributor).dripRewardAmount(rewardToken, parseEther('50'))
     })
@@ -365,6 +363,8 @@ describe.skip('E2E tests', function () {
     const rewardAmount = 30
     const amount = parseEther(rewardAmount.toString())
     beforeEach(async function () {
+      const governor = await impersonateAccount(await rewards.governor())
+      await rewards.connect(governor).addRewardToken(rewardToken, distributor.address, false)
       await rewards.connect(distributor).dripRewardAmount(rewardToken, amount)
     })
 
