@@ -22,10 +22,16 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     uint256 public constant COOL_DOWN_PERIOD = 24 hours;
 
     /// Emitted when a new position is created (i.e. when user locks VSP)
-    event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
+    event VspLocked(uint256 indexed tokenId, address indexed account, uint256 amount, uint256 lockPeriod);
 
     /// Emitted when a position is burned due to unlock or kick
-    event VspUnlocked(uint256 tokenId, uint256 amount, uint256 unlocked, uint256 penalty);
+    event VspUnlocked(
+        uint256 indexed tokenId,
+        address indexed account,
+        uint256 amount,
+        uint256 unlocked,
+        uint256 penalty
+    );
 
     /// Emitted when the exit penalty is updated
     event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
@@ -154,9 +160,10 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         boosted[_from] -= _boosted;
         locked[to_] += _locked;
         boosted[to_] += _boosted;
-        _moveVotingPower(_delegates[_from], _delegates[to_], _locked + _boosted);
+        uint256 _delta = _locked + _boosted;
+        _moveVotingPower(_delegates[_from], _delegates[to_], _delta);
 
-        emit Transfer(_from, to_, _boosted);
+        emit Transfer(_from, to_, _delta);
     }
 
     /**
@@ -170,12 +177,12 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     }
 
     /**
-     * @notice Burn given position and transfer locked amount to the owner (charges penalty if applicable)
+     * @dev Burn given position and transfer locked amount to the owner (charges penalty if applicable)
      * @param tokenId_ The id of the position (NFT)
      * @param onlyIfExpired_ When `true` revert if didn't reach unlockTime
-     * @param _account The account to burn position from
+     * @param account_ The account to burn position from
      */
-    function _burn(uint256 tokenId_, bool onlyIfExpired_, address _account) private {
+    function _burn(uint256 tokenId_, bool onlyIfExpired_, address account_) private {
         LockPosition memory _position = positions[tokenId_];
         uint256 _unlockTime = _position.unlockTime;
 
@@ -194,14 +201,14 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         esVSP721.burn(tokenId_);
         delete positions[tokenId_];
 
-        locked[_account] -= _locked;
+        locked[account_] -= _locked;
         totalLocked -= _locked;
-        boosted[_account] -= _boosted;
+        boosted[account_] -= _boosted;
         totalBoosted -= _boosted;
 
         uint256 _delta = _locked + _boosted;
         _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _delta);
-        _moveVotingPower(_delegates[_account], address(0), _delta);
+        _moveVotingPower(_delegates[account_], address(0), _delta);
         uint256 _toTransfer = _locked;
 
         if (!_isExpired && exitPenalty > 0) {
@@ -212,35 +219,35 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
             }
         }
 
-        VSP.safeTransfer(_account, _toTransfer);
+        VSP.safeTransfer(account_, _toTransfer);
 
-        emit Transfer(_account, address(0), _boosted);
-        emit VspUnlocked(tokenId_, _locked, _toTransfer, _locked - _toTransfer);
+        emit Transfer(account_, address(0), _delta);
+        emit VspUnlocked(tokenId_, account_, _locked, _toTransfer, _locked - _toTransfer);
     }
 
     /**
-     * @notice Calculate exit penalty for a non-expired position
-     * @param _position The position to check (must be non-expired)
+     * @dev Calculate exit penalty for a non-expired position
+     * @param position_ The position to check (must be non-expired)
      */
-    function _calculateExitPenalty(LockPosition memory _position) private view returns (uint256 _penalty) {
-        uint256 _progress = ((_position.unlockTime - block.timestamp) * 1e18) / _getLockedPeriodOf(_position);
-        return (((_position.lockedAmount * exitPenalty) / 1e18) * _progress) / 1e18;
+    function _calculateExitPenalty(LockPosition memory position_) private view returns (uint256 _penalty) {
+        uint256 _progress = ((position_.unlockTime - block.timestamp) * 1e18) / _getLockedPeriodOf(position_);
+        return (((position_.lockedAmount * exitPenalty) / 1e18) * _progress) / 1e18;
     }
 
-    function _delegate(address delegator, address delegatee) internal override {
-        address currentDelegate = _delegates[delegator];
-        _delegates[delegator] = delegatee;
-        emit DelegateChanged(delegator, currentDelegate, delegatee);
+    function _delegate(address delegator_, address delegatee_) internal override {
+        address currentDelegate = _delegates[delegator_];
+        _delegates[delegator_] = delegatee_;
+        emit DelegateChanged(delegator_, currentDelegate, delegatee_);
 
-        _moveVotingPower(currentDelegate, delegatee, balanceOf(delegator));
+        _moveVotingPower(currentDelegate, delegatee_, balanceOf(delegator_));
     }
 
     /**
-     * @notice Get the lock period
-     * @param _position The position
+     * @dev Get the lock period
+     * @param position_ The position
      */
-    function _getLockedPeriodOf(LockPosition memory _position) private pure returns (uint256 _lockPeriod) {
-        return (_position.boostedAmount * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / _position.lockedAmount;
+    function _getLockedPeriodOf(LockPosition memory position_) private pure returns (uint256 _lockPeriod) {
+        return (position_.boostedAmount * MAXIMUM_LOCK_PERIOD) / MAXIMUM_BOOST / position_.lockedAmount;
     }
 
     /**
@@ -303,7 +310,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
             unlockTime: block.timestamp + lockPeriod_
         });
 
-        emit Transfer(address(0), to_, _boostedAmount);
+        emit Transfer(address(0), to_, _delta);
         emit VspLocked(_tokenId, to_, amount_, lockPeriod_);
     }
 

@@ -144,6 +144,9 @@ describe('ESVSP', function () {
       const expectedUnlockTime = BigNumber.from(await timestampFromLatestBlock()).add(period)
 
       // event
+      await expect(tx)
+        .emit(esVsp, 'Transfer')
+        .withArgs(ethers.constants.AddressZero, alice.address, expectedBoostAmount.add(amount))
       await expect(tx).emit(esVsp, 'VspLocked').withArgs(expectedTokenId, alice.address, amount, period)
 
       // data
@@ -308,6 +311,7 @@ describe('ESVSP', function () {
     it('should unlock all locked amount after lock period', async function () {
       // given
       const balanceBefore = await vsp.balanceOf(alice.address)
+      const esVspBefore = await esVsp.balanceOf(alice.address)
 
       // when
       await increaseTime(YEAR.add(1))
@@ -317,7 +321,8 @@ describe('ESVSP', function () {
       const tx = esVsp.unlock(tokenId, beforeUnlockTime)
 
       // then
-      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, amount, amount, 0)
+      await expect(tx).emit(esVsp, 'Transfer').withArgs(alice.address, ethers.constants.AddressZero, esVspBefore)
+      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, alice.address, amount, amount, 0)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
@@ -385,9 +390,10 @@ describe('ESVSP', function () {
       const balance = await esVsp.balanceOf(alice.address)
 
       // when
-      const tx = () => esVsp.connect(esVsp721Wallet).transferPosition(tokenId, bob.address)
+      const tx = esVsp.connect(esVsp721Wallet).transferPosition(tokenId, bob.address)
 
       // then
+      await expect(tx).emit(esVsp, 'Transfer').withArgs(alice.address, bob.address, balance)
       await expect(tx).changeTokenBalances(esVsp, [alice, bob], [balance.mul(-1), balance])
       const totalSupplyAfter = await esVsp.totalSupply()
       expect(totalSupplyAfter).eq(totalSupplyBefore)
@@ -426,7 +432,7 @@ describe('ESVSP', function () {
       const tx = esVsp.connect(bob).kick(tokenId)
 
       // then
-      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, amount, amount, 0)
+      await expect(tx).emit(esVsp, 'VspUnlocked').withArgs(tokenId, alice.address, amount, amount, 0)
 
       // data (deleted)
       const {lockedAmount, boostedAmount, unlockTime} = await esVsp.positions(tokenId)
@@ -498,7 +504,7 @@ describe('ESVSP', function () {
       // then
       const after = await vsp.balanceOf(bob.address)
       expect(after.sub(before)).eq(parseEther(`${positionsToKick}`))
-      expect(receipt.gasUsed).closeTo(83e3 * positionsToKick, 10e3)
+      expect(receipt.gasUsed).closeTo(86e3 * positionsToKick, 10e3)
     })
 
     it('gas usage - none expired', async function () {
