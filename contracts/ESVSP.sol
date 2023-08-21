@@ -22,10 +22,16 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     uint256 public constant COOL_DOWN_PERIOD = 24 hours;
 
     /// Emitted when a new position is created (i.e. when user locks VSP)
-    event VspLocked(uint256 tokenId, address account, uint256 amount, uint256 lockPeriod);
+    event VspLocked(uint256 indexed tokenId, address indexed account, uint256 amount, uint256 lockPeriod);
 
     /// Emitted when a position is burned due to unlock or kick
-    event VspUnlocked(uint256 tokenId, uint256 amount, uint256 unlocked, uint256 penalty);
+    event VspUnlocked(
+        uint256 indexed tokenId,
+        address indexed account,
+        uint256 amount,
+        uint256 unlocked,
+        uint256 penalty
+    );
 
     /// Emitted when the exit penalty is updated
     event ExitPenaltyUpdated(uint256 oldExitPenalty, uint256 newExitPenalty);
@@ -216,7 +222,7 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
         VSP.safeTransfer(_account, _toTransfer);
 
         emit Transfer(_account, address(0), _delta);
-        emit VspUnlocked(tokenId_, _locked, _toTransfer, _locked - _toTransfer);
+        emit VspUnlocked(tokenId_, _account, _locked, _toTransfer, _locked - _toTransfer);
     }
 
     /**
