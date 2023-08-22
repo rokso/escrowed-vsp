@@ -85,6 +85,16 @@ contract ESVSP is ReentrancyGuard, Governable, GovernanceToken {
     }
 
     /**
+     * @notice This function returns true if position can be unlocked.
+     * @param tokenId_ ERC721 tokenId
+     */
+    function canUnlock(uint256 tokenId_) external view returns (bool) {
+        LockPosition memory _position = positions[tokenId_];
+        uint256 _lockTimestamp = _position.unlockTime - _getLockedPeriodOf(_position);
+        return block.timestamp > _lockTimestamp + COOL_DOWN_PERIOD;
+    }
+
+    /**
      * @notice Get the lock period
      * @param tokenId_ The position/token id
      */
