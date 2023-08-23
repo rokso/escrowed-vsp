@@ -54,25 +54,9 @@ describe('E2E tests', function () {
     // eslint-disable-next-line @typescript-eslint/no-extra-semi
     ;[alice, bob, carl, distributor] = await ethers.getSigners()
 
-    // TODO Remove deployment and initialize when esVSP is upgraded
-    const esVspFactory = new ESVSP__factory(alice)
-    esVsp = await esVspFactory.deploy()
-
-    const esVsp721Factory = new ESVSP721__factory(alice)
-    esVsp721 = await esVsp721Factory.deploy()
-
-    await esVsp721.initialize('VSP Escrow NFT', 'esVSP-NFT')
-    await esVsp721.initializeESVSP(esVsp.address)
-    await esVsp.initialize('VSP Escrow', 'esVSP', 18, esVsp721.address, carl.address)
-
-    const rewardsFactory = new Rewards__factory(alice)
-    rewards = await rewardsFactory.deploy()
-    await rewards.initialize(esVsp.address)
-
-    // TODO Uncommented below code when esVSP is upgraded
-    // esVsp = ESVSP__factory.connect(ESVSP_ADDRESS, alice)
-    // esVsp721 = ESVSP721__factory.connect(ESVSP721_ADDRESS, alice)
-    // rewards = Rewards__factory.connect(REWARDS_ADDRESS, alice)
+    esVsp = ESVSP__factory.connect(ESVSP_ADDRESS, alice)
+    esVsp721 = ESVSP721__factory.connect(ESVSP721_ADDRESS, alice)
+    rewards = Rewards__factory.connect(REWARDS_ADDRESS, alice)
     vsp = IERC20__factory.connect(Address.VSP_ADDRESS, alice)
     rewardToken = vsp.address
   }
@@ -98,8 +82,7 @@ describe('E2E tests', function () {
   })
 
   describe('deployment', function () {
-    // TODO remove .skip from this test when esVSP is upgraded on mainnet
-    it.skip('should have correct deployed addresses', async function () {
+    it('should have correct deployed addresses', async function () {
       expect(REWARDS_ADDRESS).eq(await esVsp.rewards())
       expect(ESVSP_ADDRESS).eq(await esVsp721.esVSP())
       expect(ESVSP_ADDRESS).eq(await rewards.esVSP())
