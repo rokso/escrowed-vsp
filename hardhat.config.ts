@@ -5,6 +5,7 @@ import 'hardhat-contract-sizer'
 import 'hardhat-spdx-license-identifier'
 import dotenv from 'dotenv'
 import './tasks/create-release'
+import './tasks/impersonate-deployer'
 
 dotenv.config()
 
@@ -17,12 +18,15 @@ const config: HardhatUserConfig = {
   networks: {
     localhost: {
       saveDeployments: true,
+      autoImpersonate: true,
+      chainId: 1,
     },
     hardhat: {
       forking: {
         url: process.env.NODE_URL || localhost,
         blockNumber: process.env.BLOCK_NUMBER ? parseInt(process.env.BLOCK_NUMBER) : undefined,
       },
+      chainId: 1,
     },
     mainnet: {
       url: process.env.NODE_URL,
@@ -74,7 +78,7 @@ const config: HardhatUserConfig = {
   },
   typechain: {
     outDir: 'typechain',
-  }
+  },
 }
 
 export default config
