@@ -28,7 +28,7 @@
   "devDependencies": {
     "@defi-wonderland/smock": "2.3.5",
     "@nomicfoundation/hardhat-toolbox": "2.0.2",
-    "@types/chai": "4.3.5",
+    "@types/chai": "5.2.2",
     "@types/lodash": "4.14.195",
     "@types/mocha": "10.0.1",
     "@types/node": "20.4.2",
